@@ -184,15 +184,37 @@ public class CalGrid extends JFrame implements ActionListener {
 
 				if (tem.equals("") == false) {
 					try {
-						if (today.get(Calendar.YEAR) == currentY
-								&& today.get(today.MONTH) + 1 == currentM
-								&& today.get(today.DAY_OF_MONTH) == Integer
-										.parseInt(tem)) {
-							CalCellRenderer ccr = new CalCellRenderer(today);
+						CalCellRenderer ccr = new CalCellRenderer(null);
+						Timestamp start = new Timestamp(0);
+						start.setYear(currentY);
+						start.setMonth(currentM-1);
+						start.setDate(Integer.parseInt(tem));
+						start.setHours(0);
+						start.setMinutes(0);
+						start.setSeconds(0);
+						
+						Timestamp end = new Timestamp(0);
+						end.setYear(currentY);
+						end.setMonth(currentM-1);
+						end.setDate(Integer.parseInt(tem));
+						end.setHours(23);
+						end.setMinutes(59);
+						end.setSeconds(59);
+						
+						TimeSpan period = new TimeSpan(start, end);
+						Appt[] appts = controller.RetrieveAppts(mCurrUser,period);
+						if( appts.length > 0 )
+							ccr.setBackground(new Color(228, 175, 245));
+						if (today.get(Calendar.YEAR) == currentY && today.get(today.MONTH) + 1 == currentM && today.get(today.DAY_OF_MONTH) == Integer.parseInt(tem))
+						{
+							CalCellRenderer tccr = new CalCellRenderer(today);
 							if( isApptHappening )
-								ccr.setBackground(new Color(131, 210, 237));
-							return ccr;
+								tccr.setBackground(new Color(131, 210, 237));
+							else if( appts.length > 0 )
+								tccr.setBackground(new Color(228, 175, 245));
+							return tccr;
 						}
+						return ccr;
 					} catch (Throwable e) {
 						System.exit(1);
 					}
@@ -266,6 +288,7 @@ public class CalGrid extends JFrame implements ActionListener {
 					ArrayList<Reminder> reminders = controller.getReminders(mCurrUser,period);
 					today.add(Calendar.SECOND, 1);
 					System.out.println(today.get(Calendar.HOUR)+":"+today.get(Calendar.MINUTE)+":"+today.get(Calendar.SECOND)+"  A-Size:"+appts.length+"  R-Size:"+reminders.size());
+					boolean tBool = isApptHappening;
 					isApptHappening = false;
 					for( int i = 0; i < appts.length; i++ )
 					{
@@ -276,7 +299,8 @@ public class CalGrid extends JFrame implements ActionListener {
 							break;
 						}
 					}
-					tableView.repaint();
+					if( today.get(Calendar.HOUR)+today.get(Calendar.MINUTE)+today.get(Calendar.SECOND) == 0 || tBool != isApptHappening )
+						tableView.repaint();
 					for( int i = 0; i < reminders.size(); i++ )
 					{
 						Reminder r = reminders.get( i );
@@ -465,7 +489,7 @@ public class CalGrid extends JFrame implements ActionListener {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				ClockDialog cd = new ClockDialog( calGrid, today.getTime() );
-				tableView.repaint();
+				//tableView.repaint();
 			}
 		};
 		TimeMachineMenuItemActionListener timeMachineMenuItemListener = new TimeMachineMenuItemActionListener(this);
