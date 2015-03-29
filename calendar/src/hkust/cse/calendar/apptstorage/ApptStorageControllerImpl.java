@@ -99,9 +99,9 @@ public class ApptStorageControllerImpl {
 		mApptStorage.setLocationList(locations);
 	}
 
-	public HashMap<Integer, Reminder> getReminders()
+	public ArrayList<Reminder> getReminders(User entity, TimeSpan time)
 	{
-		return mApptStorage.getReminders();
+		return mApptStorage.getReminders(entity, time);
 	}
 
 	public Reminder getReminder(int rid)

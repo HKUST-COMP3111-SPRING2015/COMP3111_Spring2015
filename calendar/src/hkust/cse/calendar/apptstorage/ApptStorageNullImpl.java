@@ -156,9 +156,19 @@ public class ApptStorageNullImpl extends ApptStorage {
 	}
 
 	@Override
-	public HashMap<Integer, Reminder> getReminders()
+	public ArrayList<Reminder> getReminders(User entity, TimeSpan time)
 	{
-		return mReminders;
+		if( !this.defaultUser.equals( entity ) )
+			return null;
+		ArrayList<Reminder> reminderList = new ArrayList<Reminder>();
+		Iterator<Integer> it = mReminders.keySet().iterator();
+		while ( it.hasNext() )
+		{
+			Reminder r = (Reminder) mReminders.get( it.next() );
+			if( r.getTimeSpan().Overlap( time ) )
+				reminderList.add( r );
+		}
+		return reminderList;
 	}
 
 	@Override

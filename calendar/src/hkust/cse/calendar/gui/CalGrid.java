@@ -20,25 +20,14 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Iterator;
 
-import javax.swing.JComboBox;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JMenu;
-import javax.swing.JMenuBar;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
-import javax.swing.JTable;
-import javax.swing.JTextPane;
-import javax.swing.SwingConstants;
+import javax.swing.*;
 import javax.swing.border.BevelBorder;
 import javax.swing.plaf.basic.BasicArrowButton;
 import javax.swing.plaf.metal.MetalBorders.Flush3DBorder;
@@ -108,6 +97,7 @@ public class CalGrid extends JFrame implements ActionListener {
 
 	private AppScheduler setAppDial;
 	private Thread timeThread;
+	private boolean isApptHappening = false;
 
 	public CalGrid(ApptStorageControllerImpl con) {
 		super();
@@ -198,7 +188,10 @@ public class CalGrid extends JFrame implements ActionListener {
 								&& today.get(today.MONTH) + 1 == currentM
 								&& today.get(today.DAY_OF_MONTH) == Integer
 										.parseInt(tem)) {
-							return new CalCellRenderer(today);
+							CalCellRenderer ccr = new CalCellRenderer(today);
+							if( isApptHappening )
+								ccr.setBackground(new Color(131, 210, 237));
+							return ccr;
 						}
 					} catch (Throwable e) {
 						System.exit(1);
@@ -252,13 +245,41 @@ public class CalGrid extends JFrame implements ActionListener {
 			{
 				while(true)
 				{
-					HashMap<Integer, Reminder> reminders = controller.getReminders();
-					Iterator<Integer> it = reminders.keySet().iterator();
+					Timestamp start = new Timestamp(0);
+					start.setYear(currentY);
+					start.setMonth(currentM-1);
+					start.setDate(currentD);
+					start.setHours(0);
+					start.setMinutes(0);
+					start.setSeconds(0);
+					
+					Timestamp end = new Timestamp(0);
+					end.setYear(currentY);
+					end.setMonth(currentM-1);
+					end.setDate(currentD);
+					end.setHours(23);
+					end.setMinutes(59);
+					end.setSeconds(59);
+					
+					TimeSpan period = new TimeSpan(start, end);
+					Appt[] appts = controller.RetrieveAppts(mCurrUser,period);
+					ArrayList<Reminder> reminders = controller.getReminders(mCurrUser,period);
 					today.add(Calendar.SECOND, 1);
-					System.out.println(today.get(Calendar.HOUR)+":"+today.get(Calendar.MINUTE)+":"+today.get(Calendar.SECOND)+"  ReminderListSize:"+reminders.size());
-					while ( it.hasNext() )
+					System.out.println(today.get(Calendar.HOUR)+":"+today.get(Calendar.MINUTE)+":"+today.get(Calendar.SECOND)+"  A-Size:"+appts.length+"  R-Size:"+reminders.size());
+					isApptHappening = false;
+					for( int i = 0; i < appts.length; i++ )
 					{
-						Reminder r = (Reminder) reminders.get( it.next() );
+						Appt a = appts[i];
+						if( a.TimeSpan().StartTime().before(today.getTime()) && a.TimeSpan().EndTime().after(today.getTime()) )
+						{
+							isApptHappening = true;
+							break;
+						}
+					}
+					tableView.repaint();
+					for( int i = 0; i < reminders.size(); i++ )
+					{
+						Reminder r = reminders.get( i );
 						if( r.getTimeSpan().StartTime().before(today.getTime()) && r.getTimeSpan().EndTime().after(today.getTime()) )
 							popupReminder(r);
 					}

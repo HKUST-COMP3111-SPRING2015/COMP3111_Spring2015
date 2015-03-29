@@ -47,7 +47,7 @@ public abstract class ApptStorage {
 
 	public abstract void removeReminder(Reminder r);	//abstract method to remove a reminder
 
-	public abstract HashMap<Integer, Reminder> getReminders(); // abstract method to return the list of reminders
+	public abstract ArrayList<Reminder> getReminders(User entity, TimeSpan time); // abstract method to return the list of reminders within the period
 
 	public abstract Reminder getReminder(int rid);	//abstract method to return a reminder of the parameter id
 
