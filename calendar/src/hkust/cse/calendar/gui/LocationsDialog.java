@@ -13,6 +13,7 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
+import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.ListModel;
 import javax.swing.ListSelectionModel;
@@ -23,6 +24,7 @@ public class LocationsDialog extends JFrame {
 	private static final long serialVersionUID = 1L;
 	private ApptStorageControllerImpl ctrl;
 	private DefaultListModel<Location> listModel;
+	private JScrollPane scrollPane;
 	private JList<Location> list;
 	private JTextField locationNameText;
 	private JButton btnAdd;
@@ -43,16 +45,17 @@ public class LocationsDialog extends JFrame {
 			for(Location l : locations)
 				listModel.addElement(l);
 
+		scrollPane = new JScrollPane();
+		scrollPane.setBounds(5, 5, 330, 120);
+		this.add(scrollPane);
+
 		list = new JList<Location>();
 		list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 		list.setSelectedIndex(0);
 		list.setModel(listModel);
-		list.setBounds(5, 5, 330, 120);
-		this.add(list);
-		/*list.addListSelectionListener
-		(
-			new ListSelectionListener()
-		);*/
+		//list.setBounds(5, 5, 330, 120);
+		//this.add(list);
+		scrollPane.setViewportView(list);
 		list.setCellRenderer(new DefaultListCellRenderer() {
 		    @Override
 		    public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
