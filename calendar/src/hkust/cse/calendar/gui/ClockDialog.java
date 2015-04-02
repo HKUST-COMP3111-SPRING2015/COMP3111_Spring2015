@@ -73,7 +73,7 @@ public class ClockDialog extends JFrame {
 					}
 					catch(InterruptedException e)
 					{
-						e.printStackTrace();
+						//e.printStackTrace();
 					}
 				}
 			}

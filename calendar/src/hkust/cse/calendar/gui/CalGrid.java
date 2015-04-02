@@ -313,7 +313,7 @@ public class CalGrid extends JFrame implements ActionListener {
 					}
 					catch(InterruptedException e)
 					{
-						e.printStackTrace();
+						//e.printStackTrace();
 					}
 				}
 			}

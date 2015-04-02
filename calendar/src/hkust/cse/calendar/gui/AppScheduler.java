@@ -504,6 +504,7 @@ public class AppScheduler extends JDialog implements ActionListener,
 		}
 		SimpleDateFormat sdf = new SimpleDateFormat( "dd/MM/yyyy HH:mm" );
 		Calendar now = Calendar.getInstance();
+		now.setTime( ( parent.getToday().getTime() ));
 		Calendar start = Calendar.getInstance();
 		Calendar end = Calendar.getInstance();
 		int year, month, day, startTimeHour, startTimeMin, endTimeHour, endTimeMin;
@@ -517,21 +518,6 @@ public class AppScheduler extends JDialog implements ActionListener,
 				JOptionPane.showMessageDialog( this, "Invalid date information!", "ERROR", JOptionPane.ERROR_MESSAGE );
 				return;
 			}
-			start.set( year, month-1, day );//-1 because the month attribute of Calendar.class is from 0 - 11
-			if( start.before( now ) )
-			{
-				JOptionPane.showMessageDialog( this, "Cannot add event before today!", "ERROR", JOptionPane.ERROR_MESSAGE );
-				return;
-			}
-		}
-		catch( NumberFormatException nfe )
-		{
-			nfe.printStackTrace();
-			JOptionPane.showMessageDialog( this, "Only integers are allowed for date fields!", "ERROR", JOptionPane.ERROR_MESSAGE );
-			return;
-		}
-		try
-		{
 			startTimeHour = Integer.parseInt( sTimeH.getText() );
 			startTimeMin = Integer.parseInt( sTimeM.getText() );
 			endTimeHour = Integer.parseInt( eTimeH.getText() );
@@ -543,6 +529,11 @@ public class AppScheduler extends JDialog implements ActionListener,
 			}
 			start.set( year, month-1, day, startTimeHour, startTimeMin, 0 );//-1 because the month attribute of Calendar.class is from 0 - 11
 			end.set( year, month-1, day, endTimeHour, endTimeMin, 0 );
+			if( start.before( now ) )
+			{
+				JOptionPane.showMessageDialog( this, "Cannot add past event!", "ERROR", JOptionPane.ERROR_MESSAGE );
+				return;
+			}
 			if( end.before( start ) )
 			{
 				JOptionPane.showMessageDialog( this, "End time cannot be earlier than start time!", "ERROR", JOptionPane.ERROR_MESSAGE );
@@ -552,7 +543,7 @@ public class AppScheduler extends JDialog implements ActionListener,
 		catch( NumberFormatException nfe )
 		{
 			nfe.printStackTrace();
-			JOptionPane.showMessageDialog( this, "Only integers are allowed for time fields!", "ERROR", JOptionPane.ERROR_MESSAGE );
+			JOptionPane.showMessageDialog( this, "Only integers are allowed for date or time fields!", "ERROR", JOptionPane.ERROR_MESSAGE );
 			return;
 		}
 
