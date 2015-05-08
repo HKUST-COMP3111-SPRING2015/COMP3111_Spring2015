@@ -1,11 +1,34 @@
 package hkust.cse.calendar.unit;
 
-public class Location {
-	private String name;
+import java.io.Serializable;
 
-	public Location(String name)
+public class Location implements Serializable{
+	private static final long serialVersionUID = 1L;
+	private int locationID;
+	private String name;
+	private String group;
+	private int capacity;
+	private boolean isGroup;
+
+	public Location(String name, String group, int capacity)
 	{
 		this.name = name;
+		this.group = group;
+		if(group.isEmpty())
+			isGroup = false;
+		else
+			isGroup = true;
+		this.capacity = capacity;
+	}
+
+	public int getID()
+	{
+		return locationID;
+	}
+
+	public void setID( int id )
+	{
+		this.locationID = id;
 	}
 
 	public String getName()
@@ -16,6 +39,40 @@ public class Location {
 	public void setName( String name )
 	{
 		this.name = name;
+	}
+
+	public String getGroup()
+	{
+		return group;
+	}
+
+	public void setGroup( String group )
+	{
+		this.group = group;
+		if(group.isEmpty())
+			isGroup = false;
+		else
+			isGroup = true;
+	}
+
+	public int getCapacity()
+	{
+		return capacity;
+	}
+
+	public void setCapacity( int capacity )
+	{
+		this.capacity = capacity;
+	}
+
+	public boolean isGroup()
+	{
+		return isGroup;
+	}
+
+	public void setIsGroup(boolean b)
+	{
+		this.isGroup = b;
 	}
 
 	@Override

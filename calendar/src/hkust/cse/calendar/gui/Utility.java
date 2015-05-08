@@ -31,7 +31,7 @@ public class Utility {
 	public static Appt createDefaultAppt(int currentY, int currentM,
 			int currentD, User me) {
 		Appt newAppt = new Appt();
-		newAppt.setID(0);
+		newAppt.setApptID(0);
 		Timestamp start = new Timestamp(0);
 		start.setYear(currentY);
 		start.setMonth(currentM - 1);
@@ -60,7 +60,7 @@ public class Utility {
 	public static Appt createDefaultAppt(int currentY, int currentM,
 			int currentD, User me, int startTime) {
 		Appt newAppt = new Appt();
-		newAppt.setID(0);
+		newAppt.setApptID(0);
 		Timestamp start = new Timestamp(0);
 		start.setYear(currentY);
 		start.setMonth(currentM - 1);

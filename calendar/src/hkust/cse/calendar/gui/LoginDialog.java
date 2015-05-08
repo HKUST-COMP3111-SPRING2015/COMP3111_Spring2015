@@ -1,7 +1,5 @@
 package hkust.cse.calendar.gui;
 
-import hkust.cse.calendar.apptstorage.ApptStorageControllerImpl;
-import hkust.cse.calendar.apptstorage.ApptStorageNullImpl;
 import hkust.cse.calendar.unit.User;
 
 import java.awt.Container;
@@ -28,19 +26,14 @@ public class LoginDialog extends JFrame implements ActionListener
 	private JButton button;
 	private JButton closeButton;
 	private JButton signupButton;
+	private CalGrid calGrid;
 	
-	public LoginDialog()		// Create a dialog to log in
+	public LoginDialog( CalGrid calGrid )
 	{
-		
-		setTitle("Log in");
-		
-		addWindowListener(new WindowAdapter() {
-			public void windowClosing(WindowEvent e) {
-				System.exit(0);
-			}
-		});
+		this.calGrid = calGrid;
+		this.setTitle("Log in");
+		this.setDefaultCloseOperation( JFrame.EXIT_ON_CLOSE );
 
-		
 		Container contentPane;
 		contentPane = getContentPane();
 		
@@ -75,7 +68,8 @@ public class LoginDialog extends JFrame implements ActionListener
 		JPanel butPanel = new JPanel();
 		butPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
 
-		button = new JButton("Log in (No user name and password required)");
+		//button = new JButton("Log in (No user name and password required)");
+		button = new JButton("Log in");
 		button.addActionListener(this);
 		butPanel.add(button);
 		
@@ -88,24 +82,26 @@ public class LoginDialog extends JFrame implements ActionListener
 		pack();
 		setLocationRelativeTo(null);
 		setVisible(true);	
-		
+
+		//userStorage = new UserStorage();
+		//userStorage.loadData();
 	}
 	
 
 	public void actionPerformed(ActionEvent e) {
-		// TODO Auto-generated method stub
 		if(e.getSource() == button)
 		{
-			// When the button is clicked, check the user name and password, and try to log the user in
-			
-			//login();
-			User user = new User( "noname", "nopass");
-			CalGrid grid = new CalGrid(new ApptStorageControllerImpl(new ApptStorageNullImpl(user)));
-			setVisible( false );
+			if( calGrid.isUserAuthorized(userName.getText(), password.getText()) )
+			{
+				calGrid.startMainProgram(userName.getText());
+				closeWindow();
+			}
+			else
+				JOptionPane.showMessageDialog(null, "Unauthorized Login! Please try another account!");
 		}
 		else if(e.getSource() == signupButton)
 		{
-			// Create a new account
+			RegistrationDialog rd = new RegistrationDialog(calGrid);
 		}
 		else if(e.getSource() == closeButton)
 		{
@@ -131,5 +127,10 @@ public class LoginDialog extends JFrame implements ActionListener
 				return false;
 		}
 		return true;
+	}
+
+	private void closeWindow()
+	{
+		this.dispose();
 	}
 }

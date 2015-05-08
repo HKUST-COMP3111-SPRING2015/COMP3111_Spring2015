@@ -1,7 +1,10 @@
 package hkust.cse.calendar.unit;
 
-public class Reminder {
+import java.io.Serializable;
 
+public class Reminder implements Serializable{
+
+	private static final long serialVersionUID = 1L;
 	private int rid;							// ID of the reminder
 	private int apptID;							// ID of the corresponding appointment
 	private TimeSpan timeSpan;					// Include day, start time and end time of the reminder

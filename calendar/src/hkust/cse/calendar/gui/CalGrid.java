@@ -1,10 +1,12 @@
 package hkust.cse.calendar.gui;
 
 import hkust.cse.calendar.Main.CalendarMain;
-import hkust.cse.calendar.apptstorage.ApptStorageControllerImpl;
+import hkust.cse.calendar.apptstorage.Controller;
+import hkust.cse.calendar.apptstorage.Model;
 import hkust.cse.calendar.unit.Appt;
 import hkust.cse.calendar.unit.Location;
 import hkust.cse.calendar.unit.Reminder;
+import hkust.cse.calendar.unit.Response;
 import hkust.cse.calendar.unit.TimeSpan;
 import hkust.cse.calendar.unit.User;
 
@@ -43,10 +45,11 @@ import javax.swing.text.StyledDocument;
 
 public class CalGrid extends JFrame implements ActionListener {
 
-	// private User mNewUser;
 	private static final long serialVersionUID = 1L;
-	private ApptStorageControllerImpl controller;
-	public User mCurrUser;
+	private CalendarMain main;
+	private Controller ctrl;
+	private Model model;
+	public User curUser;
 	private String mCurrTitle = "Desktop Calendar - No User - ";
 	private GregorianCalendar today;
 	public int currentD;
@@ -79,8 +82,7 @@ public class CalGrid extends JFrame implements ActionListener {
 	private JScrollPane scrollpane;
 	private StyledDocument mem_doc = null;
 	private SimpleAttributeSet sab = null;
-	// private boolean isLogin = false;
-	private JMenu Appmenu = new JMenu("Appointment");;
+	private JMenu Appmenu;
 
 	private final String[] holidays = {
 			"New Years Day\nSpring Festival\n",
@@ -95,30 +97,32 @@ public class CalGrid extends JFrame implements ActionListener {
 			"National Day\nChinese Mid-Autumn Festival\nChung Yeung Festival\nThanksgiving Day\n",
 			"Veterans Day(US)\nThanksgiving Day(US)\n", "Christmas\n" };
 
-	private AppScheduler setAppDial;
 	private Thread timeThread;
 	private boolean isApptHappening = false;
+	private boolean isAdmin = false;
 
-	public CalGrid(ApptStorageControllerImpl con) {
+	public CalGrid(CalendarMain main)
+	{
 		super();
+		this.main = main;
+		this.setDefaultCloseOperation( JFrame.EXIT_ON_CLOSE );
+		this.setVisible(false);
+	}
 
-		addWindowListener(new WindowAdapter() {
-			public void windowClosing(WindowEvent e) {
-				System.exit(0);
-			}
-		});
-
-		controller = con;
-		mCurrUser = null;
-
+	public void startMainProgram(String loginID)
+	{
+		curUser = model.getUser(loginID);
+		if( curUser.getUserType() == User.ADMIN )
+			isAdmin = true; 
 		previousRow = 0;
 		previousCol = 0;
 		currentRow = 0;
 		currentCol = 0;
-
+		
 		applist = new AppList();
 		applist.setParent(this);
 
+		this.setJMenuBar(null);
 		setJMenuBar(createMenuBar());
 
 		today = new GregorianCalendar();
@@ -175,9 +179,8 @@ public class CalGrid extends JFrame implements ActionListener {
 		yearGroup.add(month);
 
 		leftP.add(yearGroup, BorderLayout.NORTH);
-
-		TableModel dataModel = prepareTableModel();
 		
+		TableModel dataModel = prepareTableModel();
 		tableView = new JTable(dataModel) {
 			public TableCellRenderer getCellRenderer(int row, int col) {
 				String tem = (String) data[row][col];
@@ -202,15 +205,16 @@ public class CalGrid extends JFrame implements ActionListener {
 						end.setSeconds(59);
 						
 						TimeSpan period = new TimeSpan(start, end);
-						Appt[] appts = controller.RetrieveAppts(mCurrUser,period);
-						if( appts.length > 0 )
+						//Appt[] isAppt = controller.RetrieveAppts(curUser,period);
+						boolean tempB = ctrl.isApptExistInPeriod(curUser, period);
+						if( tempB )
 							ccr.setBackground(new Color(228, 175, 245));
 						if (today.get(Calendar.YEAR) == currentY && today.get(today.MONTH) + 1 == currentM && today.get(today.DAY_OF_MONTH) == Integer.parseInt(tem))
 						{
 							CalCellRenderer tccr = new CalCellRenderer(today);
 							if( isApptHappening )
 								tccr.setBackground(new Color(131, 210, 237));
-							else if( appts.length > 0 )
+							else if( tempB )
 								tccr.setBackground(new Color(228, 175, 245));
 							return tccr;
 						}
@@ -247,82 +251,14 @@ public class CalGrid extends JFrame implements ActionListener {
 		scrollpane.setPreferredSize(new Dimension(536, 260));
 
 		upper = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftP, scrollpane);
-
 		whole = new JSplitPane(JSplitPane.VERTICAL_SPLIT, upper, applist);
 		getContentPane().add(whole);
+		//Appmenu.setEnabled(true);
 
-		
-		initializeSystem(); // for you to add.
-		//mCurrUser = getCurrUser(); // totally meaningless code
-		Appmenu.setEnabled(true);
-
-		/*	It is responsible to:
-		 *		1. Auto update system time
-		 *		2. Check if any reminders needed to be popped up
-		 */
-		timeThread = new Thread()
-		{
-			@Override
-			public void run()
-			{
-				while(true)
-				{
-					Timestamp start = new Timestamp(0);
-					start.setYear(currentY);
-					start.setMonth(currentM-1);
-					start.setDate(currentD);
-					start.setHours(0);
-					start.setMinutes(0);
-					start.setSeconds(0);
-					
-					Timestamp end = new Timestamp(0);
-					end.setYear(currentY);
-					end.setMonth(currentM-1);
-					end.setDate(currentD);
-					end.setHours(23);
-					end.setMinutes(59);
-					end.setSeconds(59);
-					
-					TimeSpan period = new TimeSpan(start, end);
-					Appt[] appts = controller.RetrieveAppts(mCurrUser,period);
-					ArrayList<Reminder> reminders = controller.getReminders(mCurrUser,period);
-					today.add(Calendar.SECOND, 1);
-					System.out.println(today.get(Calendar.HOUR)+":"+today.get(Calendar.MINUTE)+":"+today.get(Calendar.SECOND)+"  A-Size:"+appts.length+"  R-Size:"+reminders.size());
-					boolean tBool = isApptHappening;
-					isApptHappening = false;
-					for( int i = 0; i < appts.length; i++ )
-					{
-						Appt a = appts[i];
-						if( a.TimeSpan().StartTime().before(today.getTime()) && a.TimeSpan().EndTime().after(today.getTime()) )
-						{
-							isApptHappening = true;
-							break;
-						}
-					}
-					if( today.get(Calendar.HOUR)+today.get(Calendar.MINUTE)+today.get(Calendar.SECOND) == 0 || tBool != isApptHappening )
-						tableView.repaint();
-					for( int i = 0; i < reminders.size(); i++ )
-					{
-						Reminder r = reminders.get( i );
-						if( r.getTimeSpan().StartTime().before(today.getTime()) && r.getTimeSpan().EndTime().after(today.getTime()) )
-							popupReminder(r);
-					}
-					try
-					{
-						sleep(1000);
-					}
-					catch(InterruptedException e)
-					{
-						//e.printStackTrace();
-					}
-				}
-			}
-		};
-		timeThread.start();
-
+		startTimeThread();
 		UpdateCal();
 		pack();				// sized the window to a preferred size
-		setVisible(true);	//set the window to be visible
+		this.setVisible(true);	//set the window to be visible
 	}
 
 	public TableModel prepareTableModel() {
@@ -359,6 +295,71 @@ public class CalGrid extends JFrame implements ActionListener {
 			}
 		};
 		return dataModel;
+	}
+
+	private void startTimeThread()
+	{
+		timeThread = new Thread()
+		{
+			@Override
+			public void run()
+			{
+				while(true)
+				{
+					Timestamp start = new Timestamp(0);
+					start.setYear(currentY);
+					start.setMonth(currentM-1);
+					start.setDate(currentD);
+					start.setHours(0);
+					start.setMinutes(0);
+					start.setSeconds(0);
+					
+					Timestamp end = new Timestamp(0);
+					end.setYear(currentY);
+					end.setMonth(currentM-1);
+					end.setDate(currentD);
+					end.setHours(23);
+					end.setMinutes(59);
+					end.setSeconds(59);
+					
+					TimeSpan period = new TimeSpan(start, end);
+					ArrayList<Appt> appts = model.getApptList(curUser.getID());
+					ArrayList<Reminder> reminders = model.getReminderList(appts);
+					//Appt[] appts = controller.RetrieveAppts(curUser,period);
+					//ArrayList<Reminder> reminders = controller.getReminders(curUser,period);
+					today.add(Calendar.SECOND, 1);
+					//System.out.println(today.get(Calendar.HOUR)+":"+today.get(Calendar.MINUTE)+":"+today.get(Calendar.SECOND)+"  A-Size:"+appts.length+"  R-Size:"+reminders.size());
+					boolean tBool = isApptHappening;
+					isApptHappening = false;
+					for( int i = 0; i < appts.size(); i++ )
+					{
+						Appt a = appts.get(i);
+						if( a.TimeSpan().StartTime().before(today.getTime()) && a.TimeSpan().EndTime().after(today.getTime()) )
+						{
+							isApptHappening = true;
+							break;
+						}
+					}
+					if( today.get(Calendar.HOUR)+today.get(Calendar.MINUTE)+today.get(Calendar.SECOND) == 0 || tBool != isApptHappening )
+						tableView.repaint();
+					for( int i = 0; i < reminders.size(); i++ )
+					{
+						Reminder r = reminders.get( i );
+						if( r.getTimeSpan().StartTime().before(today.getTime()) && r.getTimeSpan().EndTime().after(today.getTime()) )
+							popupReminder(r);
+					}
+					try
+					{
+						sleep(1000);
+					}
+					catch(InterruptedException e)
+					{
+						//e.printStackTrace();
+					}
+				}
+			}
+		};
+		timeThread.start();
 	}
 
 	public void getDateArray(Object[][] data) {
@@ -403,7 +404,7 @@ public class CalGrid extends JFrame implements ActionListener {
 					AppScheduler a = new AppScheduler("New", CalGrid.this);
 					a.updateSetApp(hkust.cse.calendar.gui.Utility
 							.createDefaultAppt(currentY, currentM, currentD,
-									mCurrUser));
+									curUser));
 					a.setLocationRelativeTo(null);
 					a.show();
 					TableModel t = prepareTableModel();
@@ -430,10 +431,10 @@ public class CalGrid extends JFrame implements ActionListener {
 				int n = JOptionPane.showConfirmDialog(null, "Logout?",
 						"Comfirm", JOptionPane.YES_NO_OPTION);
 				if (n == JOptionPane.YES_OPTION){
-					//controller.dumpStorageToFile();
-					//System.out.println("closed");
-					dispose();
-					CalendarMain.logOut = true;
+					logout();
+					//dispose();
+					//CalendarMain.logOut = true;
+					//TODO: Logout
 					return;	//return to CalendarMain()
 				}
 			}
@@ -452,8 +453,9 @@ public class CalGrid extends JFrame implements ActionListener {
 			}
 		});
 
-		menuBar.add(Appmenu);
-		Appmenu.setEnabled(false);
+		JMenu Appmenu = (JMenu) menuBar.add(new JMenu("Appointment"));
+		//menuBar.add(Appmenu);
+		Appmenu.setEnabled(true);
 		Appmenu.setMnemonic('p');
 		Appmenu.getAccessibleContext().setAccessibleDescription(
 				"Appointment Management");
@@ -461,13 +463,60 @@ public class CalGrid extends JFrame implements ActionListener {
 		mi.addActionListener(listener);
 		Appmenu.add(mi);
 
-		mi = new JMenuItem("Manage Locations");
+		mi = new JMenuItem("My Group Appointments");
 		mi.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				LocationsDialog ld = new LocationsDialog( controller );
+				MyAppointmentManagementDialog amd = new MyAppointmentManagementDialog( today, getCalGrid(), curUser );
 			}
 		});
 		Appmenu.add(mi);
+		
+		
+		if( isAdmin )
+		{
+			mi = new JMenuItem("Manage Locations");
+			mi.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent e) {
+					AdminLocationsDialog ld = new AdminLocationsDialog( getCalGrid() );
+				}
+			});
+			Appmenu.add(mi);
+
+			mi = new JMenuItem("Manage Users");
+			mi.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent e) {
+					AdminUserDialog aud = new AdminUserDialog( getCalGrid(), curUser );
+				}
+			});
+			Appmenu.add(mi);
+
+			/*mi = new JMenuItem("Manage All Appointments");
+			mi.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent e) {
+					AdminAppointmentManagementDialog aud = new AdminAppointmentManagementDialog( today, getCalGrid(), curUser );
+				}
+			});
+			Appmenu.add(mi);*/
+		}
+		else
+		{
+			mi = new JMenuItem("Account Settings");
+			mi.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent e) {
+					NormalUserDialog nud = new NormalUserDialog( getCalGrid(), curUser );
+				}
+			});
+			Appmenu.add(mi);
+		}
+		
+		mi = new JMenuItem("Public Appointments");
+		mi.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				PublicAppointmentDialog pad = new PublicAppointmentDialog( today, getCalGrid(), curUser );
+			}
+		});
+		Appmenu.add(mi);
+		
 
 		JMenu SystemMenu = (JMenu) menuBar.add(new JMenu("System"));
 		SystemMenu.setMnemonic('S');
@@ -495,15 +544,6 @@ public class CalGrid extends JFrame implements ActionListener {
 		TimeMachineMenuItemActionListener timeMachineMenuItemListener = new TimeMachineMenuItemActionListener(this);
 		mi.addActionListener(timeMachineMenuItemListener);
 		return menuBar;
-	}
-
-	private void initializeSystem() {//TODO: Load from disk
-
-		mCurrUser = this.controller.getDefaultUser();	//get User from controller
-		controller.LoadApptFromXml();
-		// Fix Me !
-		// Load the saved appointments from disk
-		checkUpdateJoinAppt();
 	}
 
 	public void actionPerformed(ActionEvent e) {
@@ -555,8 +595,9 @@ public class CalGrid extends JFrame implements ActionListener {
 					TableModel t = prepareTableModel();
 					tableView.setModel(t);
 					tableView.repaint();
+					UpdateCal();
 				}
-				UpdateCal();
+				//UpdateCal();TODO: Changed BY Alton
 			}
 		}
 	}
@@ -569,8 +610,8 @@ public class CalGrid extends JFrame implements ActionListener {
 	}
 
 	public void UpdateCal() {
-		if (mCurrUser != null) {
-			mCurrTitle = "Desktop Calendar - " + mCurrUser.ID() + " - ";
+		if (curUser != null) {
+			mCurrTitle = "Desktop Calendar - " + curUser.getLoginID() + " - ";
 			this.setTitle(mCurrTitle + "(" + currentY + "-" + currentM + "-"
 					+ currentD + ")");
 			Appt[] monthAppts = null;
@@ -581,6 +622,7 @@ public class CalGrid extends JFrame implements ActionListener {
 //					apptMarker[i][j] = new Vector(10, 1);
 
 			TableModel t = prepareTableModel();
+			//buildTable(t);
 			this.tableView.setModel(t);
 			this.tableView.repaint();
 			updateAppList();
@@ -610,7 +652,12 @@ public class CalGrid extends JFrame implements ActionListener {
 		end.setDate(g.getActualMaximum(GregorianCalendar.DAY_OF_MONTH));
 		end.setHours(23);
 		TimeSpan period = new TimeSpan(start, end);
-		return controller.RetrieveAppts(mCurrUser, period);
+		ArrayList<Appt> appts = ctrl.getApptList(curUser.getID(), period);
+		Appt[] array = new Appt[appts.size()];
+		for( int i = 0; i < appts.size(); i++ )
+			array[i] = appts.get(i);
+		return array;
+		//return controller.RetrieveAppts(curUser, period);
 	}
 
 	private void mousePressResponse() {
@@ -694,78 +741,190 @@ public class CalGrid extends JFrame implements ActionListener {
 		end.setSeconds(59);
 		
 		TimeSpan period = new TimeSpan(start, end);
-		return controller.RetrieveAppts(mCurrUser, period);
+		ArrayList<Appt> appts = ctrl.getApptList(curUser.getID(), period);
+		Appt[] array = new Appt[appts.size()];
+		for( int i = 0; i < appts.size(); i++ )
+			array[i] = appts.get(i);
+		return array;
+		//return controller.RetrieveAppts(curUser, period);
 	}
 
 	public AppList getAppList() {
 		return applist;
 	}
 
-	public User getCurrUser() {
-		return mCurrUser;
-	}
-	
-	// check for any invite or update from join appointment
-	public void checkUpdateJoinAppt(){//TODO: checkUpdateJoinAppt
-		// Fix Me!
+	public User getCurUser() {
+		return curUser;
 	}
 
-	public Location[] getLocationList()
+	public ArrayList<Appt> getInitiateApptList(int userID, TimeSpan period)
 	{
-		return controller.getLocationList();
+		return ctrl.getInitiateApptList(userID, period);
+	}
+
+	public ArrayList<Appt> getApptResponseList(int userID, String response, TimeSpan period)
+	{
+		return ctrl.getApptResponseList(userID, response, period);
+	}
+
+	public ArrayList<Integer> getApptGroupIDList(int freGroupID)
+	{
+		return model.getApptGroupIDList(freGroupID);
+	}
+
+	public ArrayList<Appt> getPublicApptList(TimeSpan period)
+	{
+		return ctrl.getPublicApptList(period);
+	}
+			
+	/*public TimeSpan getEarliestSchedule()
+	{
+		return ctrl.getEarliestSchedule(today, curUser.getID());
+	}*/
+
+	public ArrayList<TimeSpan> getAvailableSchedule(Calendar start, ArrayList<String> userLoginIDList, int numOfDays)
+	{
+		return ctrl.getAvailableSchedule(start, userLoginIDList, numOfDays);
+	}
+
+	public ArrayList<Location> getLocationList()
+	{
+		return model.getLocationList();
 	}
 
 	public int getNextApptID()
 	{
-		return controller.getNextApptID();
+		return model.getNextApptID();
 	}
 
 	public int getNextReminderID()
 	{
-		return controller.getNextReminderID();
+		return model.getNextReminderID();
 	}
 
-	public boolean addNewAppt( Appt appt )
+	public int getNextLocationID()
 	{
-		boolean isSuccess = controller.ManageAppt( appt, ApptStorageControllerImpl.NEW );
+		return model.getNextLocationID();
+	}
+
+	public int getNextFreqGroupID()
+	{
+		return model.getNextFreqGroupID();
+	}
+
+	public boolean isApptCrash(int userID, TimeSpan t, int apptID)
+	{
+		return ctrl.isApptCrash(userID, t, apptID);
+	}
+
+	public boolean isLocationCrash(Location l, TimeSpan t, int apptID)
+	{
+		return ctrl.isLocationCrash(l, t, apptID);
+	}
+	
+	public boolean addNewAppt(Appt a)
+	{
+		if( !ctrl.isApptCrash(a.getInitUserID(), a.TimeSpan(), a.getID()) )
+		{
+			boolean isSuccess = model.addAppt(a);
+			updateAppList();
+			return isSuccess;
+		}
+		return false;
+	}
+
+	public void addNewReminder(Reminder r)
+	{
+		model.addReminder(r);
+	}
+
+	public void addNewLocation(Location l)
+	{
+		model.addLocation(l);
+	}
+
+	public void addNewResponse(int apptID, int userID, String res)
+	{
+		model.addResponse(apptID, userID, res);
+	}
+
+	public Appt getAppt(int apptID)
+	{
+		return model.getAppt(apptID);
+	}
+
+	public Reminder getReminder(int rid)
+	{
+		return model.getReminder(rid);
+	}
+
+	public User getUser(int userID)
+	{
+		return model.getUser(userID);
+	}
+
+	public User getUser(String loginID)
+	{
+		return model.getUser(loginID);
+	}
+
+	public ArrayList<Response> getResponseList(int apptID)
+	{
+		return model.getResponseList(apptID);
+	}
+
+
+	public boolean modifyAppt(Appt a)
+	{
+		if( !ctrl.isApptCrash(a.getInitUserID(), a.TimeSpan(), a.getID()) )
+		{
+			boolean isSuccess = model.updateAppt(a);
+			updateAppList();
+			return isSuccess;
+		}
+		return false;
+	}
+
+	public void updateReminder(Reminder r)
+	{
+		model.updateReminder( r );
+	}
+
+	public void updateLocation(Location l)
+	{
+		model.updateLocation(l);
+	}
+
+	public void updateResponse(int apptID, int userID, String res)
+	{
+		model.updateResponse(apptID, userID, res);
+	}
+
+	public boolean removeAppt(int apptID)
+	{
+		boolean isSuccess = model.removeAppt(apptID);
 		updateAppList();
 		return isSuccess;
 	}
 
-	public void addNewReminder( Reminder r )
+	public void removeFreqGroup(int gid)
 	{
-		controller.addNewReminder(r);
+		model.removeFreqGroup(gid);
 	}
 
-	public Reminder getReminder( int rid )
+	public void removeReminder(int rid)
 	{
-		return controller.getReminder(rid);
+		model.removeReminder( rid );
 	}
 
-	public boolean modifyAppt( Appt appt )
+	public void removeLocation(int locationID)
 	{
-		boolean isSuccess = controller.ManageAppt( appt, ApptStorageControllerImpl.MODIFY );;
-		updateAppList();
-		return isSuccess;
+		model.removeLocation(locationID);
 	}
 
-	public void updateReminder( Reminder r )
+	public void removeResponse(int apptID)
 	{
-		controller.updateReminder( r );
-	}
-
-	public boolean removeAppt( Appt appt )
-	{
-		boolean isSuccess = controller.ManageAppt( appt, ApptStorageControllerImpl.REMOVE );
-		if( isSuccess && appt.getReminderID() != -1 )
-			controller.removeReminder(controller.getReminder(appt.getReminderID()));
-		updateAppList();
-		return isSuccess;
-	}
-
-	public void removeReminder( Reminder r )
-	{
-		controller.removeReminder( r );
+		model.removeResponse(apptID);
 	}
 
 	public void updateTime( Date d )
@@ -786,7 +945,7 @@ public class CalGrid extends JFrame implements ActionListener {
 			return;
 		SimpleDateFormat sdfDate = new SimpleDateFormat("dd/MM/yyyy");
 		SimpleDateFormat sdfTime = new SimpleDateFormat("HH:mm:ss");
-		Appt a = controller.getAppt( r.getApptID() );
+		Appt a = model.getAppt( r.getApptID() );
 		String msg = "~~~~~Appointment Reminder~~~~~\n";
 		msg += "Appointment: " + a.getTitle() + "\n";
 		msg += "Date: " + sdfDate.format(a.TimeSpan().StartTime()) + "\n";
@@ -795,10 +954,45 @@ public class CalGrid extends JFrame implements ActionListener {
 		msg += "Location: " + a.getLocation().getName() + "\n";
 		JOptionPane.showMessageDialog(null, msg, "APPOINTMENT REMINDER", JOptionPane.INFORMATION_MESSAGE);
 		r.setIsReminded(true);
+		model.updateReminder(r);
 	}
 
 	public GregorianCalendar getToday()
 	{
 		return today;
 	}
+
+	public boolean isUserAuthorized(String loginID, String pw)
+	{
+		return model.isUserAuthorized(loginID, pw);
+	}
+
+	public boolean isUserExist(String loginID)
+	{
+		if( model.getUser(loginID) == null )
+			return false;
+		return true;
+	}
+
+	public String getCurUserLoginID() { return curUser.getLoginID(); }
+	public ArrayList<User> getUserList() { return model.getUserList(); }
+	public void addUser(User user) { model.addUser(user); }
+	public void updateUser(User user) { model.updateUser(user); }
+	public void removeUser(int userID) { model.removeUser(userID); }
+	
+	public void login()
+	{
+		LoginDialog loginDialog = new LoginDialog(this);
+	}
+
+	public void logout()
+	{
+		//LoginDialog loginDialog = new LoginDialog(this);
+		//this.setVisible(false);
+		main.restart();
+	}
+
+	public void setController(Controller ctrl) { this.ctrl = ctrl; }
+	public void setModel(Model model) { this.model = model; }
+	public CalGrid getCalGrid() { return this; }
 }

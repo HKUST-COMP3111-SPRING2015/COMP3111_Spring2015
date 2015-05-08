@@ -7,7 +7,6 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 
-import hkust.cse.calendar.apptstorage.ApptStorageControllerImpl;
 import hkust.cse.calendar.unit.Location;
 
 import javax.swing.*;

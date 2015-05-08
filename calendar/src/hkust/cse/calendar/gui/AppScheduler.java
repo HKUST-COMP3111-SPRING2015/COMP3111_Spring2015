@@ -3,7 +3,9 @@ package hkust.cse.calendar.gui;
 import hkust.cse.calendar.unit.Appt;
 import hkust.cse.calendar.unit.Location;
 import hkust.cse.calendar.unit.Reminder;
+import hkust.cse.calendar.unit.Response;
 import hkust.cse.calendar.unit.TimeSpan;
+import hkust.cse.calendar.unit.User;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -17,8 +19,10 @@ import java.awt.event.ComponentEvent;
 import java.awt.event.ComponentListener;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
+import java.util.Vector;
 
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
@@ -35,6 +39,7 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
+import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.border.BevelBorder;
@@ -42,6 +47,8 @@ import javax.swing.border.Border;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
 
 
 public class AppScheduler extends JDialog implements ActionListener,
@@ -77,9 +84,20 @@ public class AppScheduler extends JDialog implements ActionListener,
 	private JLabel numOfFreqL;
 	private JTextField numOfFreqF;
 
-	private DefaultListModel model;
 	private JTextField titleField;
+	private JCheckBox cbIsPublic;
 	private JComboBox<Location> cbLocation;
+	private JButton btnAutoSchedule;
+
+	private JTextArea detailArea;
+	private JTable inviteListTable;
+	private TableModel inviteListModel;
+	private JTextField tfInviteUser;
+	private JCheckBox cbIsJoint;
+	private JButton btnInvite;
+	private JLabel getScheduleL;
+	private JTextField tfGetSchedule;
+	private JButton btnGetSchedule;
 
 	private JButton saveBut;
 	private JButton CancelBut;
@@ -87,27 +105,29 @@ public class AppScheduler extends JDialog implements ActionListener,
 	private JButton rejectBut;
 	
 	private Appt NewAppt;
-	private CalGrid parent;
+	private CalGrid calGrid;
 	private boolean isNew = true;
 	private boolean isChanged = true;
 	private boolean isJoint = false;
 
-	private JTextArea detailArea;
-
 	private JSplitPane pDes;
-	JPanel detailPanel;
+	private JPanel groupAndDetailPanel;
+	private JPanel groupEventPanel; 
 
 //	private JTextField attendField;
 //	private JTextField rejectField;
 //	private JTextField waitingField;
 	private int selectedApptId = -1;
 	private int selectedReminderId = -1;
+	private int selectedFreqGroupId = -1;
+	private MyAppointmentManagementDialog am;
 
-	private void commonConstructor(String title, CalGrid cal) {
-		parent = cal;
-		this.setAlwaysOnTop(true);
-		setTitle(title);
-		setModal(false);
+	private void commonConstructor(String title, final CalGrid calGrid)
+	{
+		this.calGrid = calGrid;
+		//this.setAlwaysOnTop(true);
+		this.setTitle(title);
+		this.setModal(false);
 
 		Container contentPane;
 		contentPane = getContentPane();
@@ -255,8 +275,6 @@ public class AppScheduler extends JDialog implements ActionListener,
 		top.add(pApptDateTime, BorderLayout.WEST);
 		top.add(pApptOthers, BorderLayout.EAST);
 
-		contentPane.add("North", top);
-
 		JPanel titleAndTextPanel = new JPanel();
 		JLabel titleL = new JLabel("TITLE");
 		titleField = new JTextField(15);
@@ -265,7 +283,7 @@ public class AppScheduler extends JDialog implements ActionListener,
 		titleAndTextPanel.add( new JLabel("   ") );
 		JLabel locationLabel = new JLabel("LOCATION");
 		cbLocation = new JComboBox<Location>();
-		Location[] locations = cal.getLocationList();
+		ArrayList<Location> locations = calGrid.getLocationList();
 		if( locations != null )
 			for( Location l : locations )
 				cbLocation.addItem( l );
@@ -275,32 +293,116 @@ public class AppScheduler extends JDialog implements ActionListener,
 		        super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 		        if (value instanceof Location) {
 		        	Location location = (Location)value;
-		            setText(location.getName());
+		        	String s = location.getName();
+		        	if( location.isGroup() )
+		        		s += (" of "+location.getGroup()+"("+location.getCapacity()+")");
+		            setText(s);
 		        }
 		        return this;
 		    }
 		});
+		cbLocation.addActionListener(this);
 		titleAndTextPanel.add(locationLabel);
 		titleAndTextPanel.add(cbLocation);
+		cbIsPublic = new JCheckBox("Public");
+		titleAndTextPanel.add(cbIsPublic);
 
-		detailPanel = new JPanel();
-		detailPanel.setLayout(new BorderLayout());
+		btnAutoSchedule = new JButton("Auto");
+		btnAutoSchedule.addActionListener(this);
+		titleAndTextPanel.add(btnAutoSchedule);
+		getScheduleL = new JLabel("Days:");
+		titleAndTextPanel.add(getScheduleL);
+		tfGetSchedule = new JTextField(2);
+		titleAndTextPanel.add(tfGetSchedule);
+		btnGetSchedule = new JButton("Schedule");
+		btnGetSchedule.addActionListener(this);
+		btnGetSchedule.setEnabled(false);
+		titleAndTextPanel.add(btnGetSchedule);
+		
+		groupAndDetailPanel = new JPanel();
+		groupAndDetailPanel.setLayout(new BorderLayout());
 		Border detailBorder = new TitledBorder(null, "Appointment Description");
-		detailPanel.setBorder(detailBorder);
-		detailArea = new JTextArea(20, 30);
-
+		groupAndDetailPanel.setBorder(detailBorder);
+		//detailArea = new JTextArea(20, 30);
+		detailArea = new JTextArea(5, 30);
 		detailArea.setEditable(true);
 		JScrollPane detailScroll = new JScrollPane(detailArea);
-		detailPanel.add(detailScroll);
+		groupAndDetailPanel.add(detailScroll, BorderLayout.NORTH);
 
-		pDes = new JSplitPane(JSplitPane.VERTICAL_SPLIT, titleAndTextPanel,
-				detailPanel);
+		groupEventPanel = new JPanel();
+		groupEventPanel.setLayout(new BorderLayout());
+		Border groupEventBorder = new TitledBorder(null, "Group Event");
+		groupEventPanel.setBorder(groupEventBorder);
+		tfInviteUser = new JTextField(20);
+		tfInviteUser.setEditable(true);
+		tfInviteUser.setEnabled(false);
+		groupEventPanel.add(tfInviteUser, BorderLayout.CENTER);
+		btnInvite = new JButton("Invite");
+		btnInvite.addActionListener(this);
+		btnInvite.setEnabled(false);
+		cbIsJoint = new JCheckBox("Group Event");
+		cbIsJoint.addActionListener
+		(
+			new ActionListener()
+			{
+				@Override
+				public void actionPerformed(ActionEvent arg0)
+				{
+					if(cbIsJoint.isSelected())
+					{
+						tfInviteUser.setEnabled(true);
+						btnInvite.setEnabled(true);
+						btnGetSchedule.setEnabled(true);
+						Location l = (Location) cbLocation.getSelectedItem();
+						int capacity = l.getCapacity();
+						if( capacity == 0 )
+						{
+							JOptionPane.showMessageDialog(null, "Please change to a bigger room first!", "ERROR", JOptionPane.WARNING_MESSAGE);
+							cbIsJoint.setSelected(false);
+							tfInviteUser.setEnabled(false);
+							btnInvite.setEnabled(false);
+							btnGetSchedule.setEnabled(false);
+							return;
+						}
+						DefaultTableModel model = (DefaultTableModel) inviteListTable.getModel();
+						model.addRow(new Object[]{calGrid.getCurUserLoginID(), "Pending"});
+					}
+					else
+					{
+						tfInviteUser.setEnabled(false);
+						btnInvite.setEnabled(false);
+						btnGetSchedule.setEnabled(false);
+						DefaultTableModel model = (DefaultTableModel) inviteListTable.getModel();
+						while(model.getRowCount()>0)
+							model.removeRow(0);
+					}
+				}
+			}
+		);
+		groupEventPanel.add(cbIsJoint, BorderLayout.NORTH);
+		groupEventPanel.add(btnInvite, BorderLayout.EAST);
+
+		Object columnNames[] = {"User ID", "Status"};
+		inviteListModel = new DefaultTableModel(null, columnNames);
+		inviteListTable = new JTable(inviteListModel);
+		JScrollPane scrollPane = new JScrollPane(inviteListTable);
+		inviteListTable.setSize(this.getWidth(), 200);
+		inviteListTable.setPreferredScrollableViewportSize(inviteListTable.getSize());
+		inviteListTable.setEnabled(false);
+		//DefaultTableModel model = (DefaultTableModel) inviteListTable.getModel();
+		//model.addRow(new Object[]{calGrid.getCurUserLoginID(), "Pending"});
+		groupEventPanel.add(scrollPane, BorderLayout.SOUTH);
+
+		groupAndDetailPanel.add(groupEventPanel, BorderLayout.CENTER);
+
+		pDes = new JSplitPane(JSplitPane.VERTICAL_SPLIT, titleAndTextPanel, groupAndDetailPanel);
 
 		top.add(pDes, BorderLayout.SOUTH);
 
+		contentPane.add("North", top);
+
 		if (NewAppt != null) {
 			detailArea.setText(NewAppt.getInfo());
-
 		}
 		
 		JPanel panel2 = new JPanel();
@@ -339,7 +441,7 @@ public class AppScheduler extends JDialog implements ActionListener,
 			saveBut.setText("confirmed");
 		}
 		if (this.getTitle().equals("Join Appointment Invitation") || this.getTitle().equals("Someone has responded to your Joint Appointment invitation") || this.getTitle().equals("Join Appointment Content Change")){
-			allDisableEdit();
+			DisableEdit();
 		}
 		pack();
 
@@ -365,126 +467,166 @@ public class AppScheduler extends JDialog implements ActionListener,
 			saveButtonResponse();
 
 		} else if (e.getSource() == rejectBut){
-			if (JOptionPane.showConfirmDialog(this, "Reject this joint appointment?", "Confirmation", JOptionPane.YES_NO_OPTION) == 0){
-				NewAppt.addReject(getCurrentUser());
+			if (JOptionPane.showConfirmDialog(this, "Reject this invitation?", "Confirmation", JOptionPane.YES_NO_OPTION) == 0){
+				/*NewAppt.addReject(getCurrentUser());
 				NewAppt.getAttendList().remove(getCurrentUser());
 				NewAppt.getWaitingList().remove(getCurrentUser());
-				this.setVisible(false);
+				this.setVisible(false);*/
+				calGrid.updateResponse(selectedApptId, calGrid.getCurUser().getID(), Response.REJECT);
+				am.refreshTable();
 				dispose();
 			}
 		}
-		parent.getAppList().clear();
-		parent.getAppList().setTodayAppt(parent.GetTodayAppt());
-		parent.repaint();
-	}
-
-	private JPanel createPartOperaPane() {
-		JPanel POperaPane = new JPanel();
-		JPanel browsePane = new JPanel();
-		JPanel controPane = new JPanel();
-
-		POperaPane.setLayout(new BorderLayout());
-		TitledBorder titledBorder1 = new TitledBorder(BorderFactory
-				.createEtchedBorder(Color.white, new Color(178, 178, 178)),
-				"Add Participant:");
-		browsePane.setBorder(titledBorder1);
-
-		POperaPane.add(controPane, BorderLayout.SOUTH);
-		POperaPane.add(browsePane, BorderLayout.CENTER);
-		POperaPane.setBorder(new BevelBorder(BevelBorder.LOWERED));
-		return POperaPane;
-
-	}
-
-	private int[] getValidDate() {
-
-		int[] date = new int[3];
-		date[0] = Utility.getNumber(yearF.getText());
-		date[1] = Utility.getNumber(monthF.getText());
-		if (date[0] < 1980 || date[0] > 2100) {
-			JOptionPane.showMessageDialog(this, "Please input proper year",
-					"Input Error", JOptionPane.ERROR_MESSAGE);
-			return null;
+		else if( e.getSource() == btnInvite )
+		{
+			DefaultTableModel model = (DefaultTableModel) inviteListTable.getModel();
+			String input = tfInviteUser.getText().trim();
+			if( calGrid.isUserExist(input) )
+			{
+				Vector v = model.getDataVector();
+				for( int i = 0; i < v.size(); i++ )
+					if( ((Vector)v.get(i)).get(0).equals(input) )
+					{
+						JOptionPane.showMessageDialog(null, input+" is on the list already!", "ERROR", JOptionPane.WARNING_MESSAGE);
+						return;
+					}
+				Location l = (Location) cbLocation.getSelectedItem();
+				if( l.getCapacity() > model.getRowCount() )
+				{
+					model.addRow(new Object[]{input, "Pending"});
+					tfInviteUser.setText("");
+				}
+				else
+				{
+					JOptionPane.showMessageDialog(null, "The venue is full", "ERROR", JOptionPane.WARNING_MESSAGE);
+					return;
+				}
+			}
+			else
+				JOptionPane.showMessageDialog(null, "No such user!", "ERROR", JOptionPane.WARNING_MESSAGE);
 		}
-		if (date[1] <= 0 || date[1] > 12) {
-			JOptionPane.showMessageDialog(this, "Please input proper month",
-					"Input Error", JOptionPane.ERROR_MESSAGE);
-			return null;
+		else if( e.getSource() == btnAutoSchedule )
+		{
+			TimeSpan t;
+			if( cbIsJoint.isSelected() )
+			{
+				Vector<Vector<String>> data = ((DefaultTableModel) inviteListTable.getModel()).getDataVector();
+				ArrayList<String> userLoginIDList = new ArrayList<String>();
+				for( int i = 0; i < data.size(); i++ )
+					userLoginIDList.add( data.get(i).get(0) );
+				//t = calGrid.getEarliestSchedule(userLoginIDList);
+			}
+			//else
+				//t = calGrid.getEarliestSchedule();
 		}
+		//TODO: Get Schedule
+		else if( e.getSource() == btnGetSchedule )
+		{
+			
+			if( yearF.getText().trim().isEmpty() || monthF.getText().trim().isEmpty() || dayF.getText().trim().isEmpty()
+					|| sTimeH.getText().trim().isEmpty() || sTimeM.getText().trim().isEmpty() )
+			{
+				JOptionPane.showMessageDialog( this, "Missing information!", "ERROR", JOptionPane.ERROR_MESSAGE );
+				return;
+			}
+			//Check if num of days correct
+			try{Integer.parseInt(this.tfGetSchedule.getText());}
+			catch(Exception e2)
+			{
+				JOptionPane.showMessageDialog( this, "Number Format Problem!", "ERROR", JOptionPane.ERROR_MESSAGE );
+				return;
+			}
+			
+			//Get Time first
+			Calendar now = Calendar.getInstance();
+			now.setTime( ( calGrid.getToday().getTime() ));
+			Calendar start = Calendar.getInstance();
+			int year, month, day, startTimeHour, startTimeMin;
+			try
+			{
+				year = Integer.parseInt( yearF.getText() );
+				month = Integer.parseInt( monthF.getText() );
+				day = Integer.parseInt( dayF.getText() );
+				if( !isDateValid( year, month, day ) )
+				{
+					JOptionPane.showMessageDialog( this, "Invalid date information!", "ERROR", JOptionPane.ERROR_MESSAGE );
+					return;
+				}
+				startTimeHour = Integer.parseInt( sTimeH.getText() );
+				startTimeMin = Integer.parseInt( sTimeM.getText() );
+				if( !isTimeValid( startTimeHour, startTimeMin ) )
+				{
+					JOptionPane.showMessageDialog( this, "Invalid time information!", "ERROR", JOptionPane.ERROR_MESSAGE );
+					return;
+				}
+				start.set( year, month-1, day, startTimeHour, startTimeMin, 0 );//-1 because the month attribute of Calendar.class is from 0 - 11
+				if( start.before( now ) )
+				{
+					JOptionPane.showMessageDialog( this, "Cannot add past event!", "ERROR", JOptionPane.ERROR_MESSAGE );
+					return;
+				}
+			}
+			catch( NumberFormatException nfe )
+			{
+				nfe.printStackTrace();
+				JOptionPane.showMessageDialog( this, "Only integers are allowed for date or time fields!", "ERROR", JOptionPane.ERROR_MESSAGE );
+				return;
+			}
+			Vector<Vector<String>> data = ((DefaultTableModel) inviteListTable.getModel()).getDataVector();
+			ArrayList<String> userLoginIDList = new ArrayList<String>();
+			for( int i = 0; i < data.size(); i++ )
+				userLoginIDList.add( data.get(i).get(0) );
+			
+			ArrayList<TimeSpan> availableList = calGrid.getAvailableSchedule(start, userLoginIDList, Integer.parseInt(this.tfGetSchedule.getText()));
+			for( int i = 0; i < availableList.size(); i++ )
+				System.out.println("AppScheduler-"+(i+1)+":"+availableList.get(i).getTimeString());
 
-		date[2] = Utility.getNumber(dayF.getText());
-		int monthDay = CalGrid.monthDays[date[1] - 1];
-		if (date[1] == 2) {
-			GregorianCalendar c = new GregorianCalendar();
-			if (c.isLeapYear(date[0]))
-				monthDay = 29;
+			AvailableScheduleDialog asd = new AvailableScheduleDialog(this, availableList);
 		}
-		if (date[2] <= 0 || date[2] > monthDay) {
-			JOptionPane.showMessageDialog(this,
-			"Please input proper month day", "Input Error",
-			JOptionPane.ERROR_MESSAGE);
-			return null;
+		else if( e.getSource() == cbLocation )
+		{
+			DefaultTableModel model = (DefaultTableModel) inviteListTable.getModel();
+			Location l = (Location) cbLocation.getSelectedItem();
+			int capacity = l.getCapacity();
+			if( capacity < model.getRowCount() )
+			{
+				JOptionPane.showMessageDialog(null, "The venue is too small!", "Warning", JOptionPane.WARNING_MESSAGE);
+				while( model.getRowCount() > 0 )
+					model.removeRow(0);
+				if( capacity > 0 )
+					model.addRow(new Object[]{calGrid.getCurUserLoginID(), "Pending"});
+				else
+				{
+					cbIsJoint.setSelected(false);
+					tfInviteUser.setEnabled(false);
+					btnInvite.setEnabled(false);
+					btnGetSchedule.setEnabled(false);
+				}
+			}
 		}
-		return date;
-	}
-
-	private int getTime(JTextField h, JTextField min) {
-
-		int hour = Utility.getNumber(h.getText());
-		if (hour == -1)
-			return -1;
-		int minute = Utility.getNumber(min.getText());
-		if (minute == -1)
-			return -1;
-
-		return (hour * 60 + minute);
-
-	}
-
-	private int[] getValidTimeInterval() {
-
-		int[] result = new int[2];
-		result[0] = getTime(sTimeH, sTimeM);
-		result[1] = getTime(eTimeH, eTimeM);
-		if ((result[0] % 15) != 0 || (result[1] % 15) != 0) {
-			JOptionPane.showMessageDialog(this,
-					"Minute Must be 0, 15, 30, or 45 !", "Input Error",
-					JOptionPane.ERROR_MESSAGE);
-			return null;
-		}
-		
-		if (!sTimeM.getText().equals("0") && !sTimeM.getText().equals("15") && !sTimeM.getText().equals("30") && !sTimeM.getText().equals("45") 
-			|| !eTimeM.getText().equals("0") && !eTimeM.getText().equals("15") && !eTimeM.getText().equals("30") && !eTimeM.getText().equals("45")){
-			JOptionPane.showMessageDialog(this,
-					"Minute Must be 0, 15, 30, or 45 !", "Input Error",
-					JOptionPane.ERROR_MESSAGE);
-			return null;
-		}
-		
-		if (result[1] == -1 || result[0] == -1) {
-			JOptionPane.showMessageDialog(this, "Please check time",
-					"Input Error", JOptionPane.ERROR_MESSAGE);
-			return null;
-		}
-		if (result[1] <= result[0]) {
-			JOptionPane.showMessageDialog(this,
-					"End time should be bigger than \nstart time",
-					"Input Error", JOptionPane.ERROR_MESSAGE);
-			return null;
-		}
-		if ((result[0] < AppList.OFFSET * 60)
-				|| (result[1] > (AppList.OFFSET * 60 + AppList.ROWNUM * 2 * 15))) {
-			JOptionPane.showMessageDialog(this, "Out of Appointment Range !",
-					"Input Error", JOptionPane.ERROR_MESSAGE);
-			return null;
-		}
-
-		return result;
+		calGrid.getAppList().clear();
+		calGrid.getAppList().setTodayAppt(calGrid.GetTodayAppt());
+		calGrid.repaint();
 	}
 
 	private void saveButtonResponse() {//TODO: saveButtonResponse()
-		// Fix Me!
-		// Save the appointment to the hard disk
+		if( saveBut.getText().equals("OK") )
+		{
+			this.dispose();
+			return;
+		}
+		if( saveBut.getText().equals("Accept") )
+		{
+			if( calGrid.isApptCrash(calGrid.getCurUser().getID(), calGrid.getAppt(selectedApptId).TimeSpan(), selectedApptId) )
+			{
+				JOptionPane.showMessageDialog( this, "It crashes with your other appointment!", "ERROR", JOptionPane.ERROR_MESSAGE );
+				return;
+			}
+			calGrid.updateResponse(selectedApptId, calGrid.getCurUser().getID(), Response.ACCEPT);
+			am.refreshTable();
+			this.dispose();
+			return;
+		}
 		if( yearF.getText().trim().isEmpty() || monthF.getText().trim().isEmpty() || dayF.getText().trim().isEmpty()
 				|| sTimeH.getText().trim().isEmpty() || sTimeM.getText().trim().isEmpty() || eTimeH.getText().trim().isEmpty()
 				|| eTimeM.getText().trim().isEmpty() || titleField.getText().trim().isEmpty() )
@@ -504,7 +646,7 @@ public class AppScheduler extends JDialog implements ActionListener,
 		}
 		SimpleDateFormat sdf = new SimpleDateFormat( "dd/MM/yyyy HH:mm" );
 		Calendar now = Calendar.getInstance();
-		now.setTime( ( parent.getToday().getTime() ));
+		now.setTime( ( calGrid.getToday().getTime() ));
 		Calendar start = Calendar.getInstance();
 		Calendar end = Calendar.getInstance();
 		int year, month, day, startTimeHour, startTimeMin, endTimeHour, endTimeMin;
@@ -568,16 +710,70 @@ public class AppScheduler extends JDialog implements ActionListener,
 			freq = 1;
 		else
 			freq = Integer.parseInt( numOfFreqF.getText().trim() );
+
+		//Check if the appointment(s) crash(es) others
 		for( int i = 0; i < freq; i++ )
 		{
-			NewAppt = new Appt();
-			NewAppt.setTitle( titleField.getText().trim() );
-			NewAppt.setInfo( detailArea.getText().trim() );
 			Calendar s = (Calendar) start.clone();
 			s.add( calIncType, calInc*i );
 			Calendar e = (Calendar) end.clone();
 			e.add( calIncType, calInc*i );
-			NewAppt.setTimeSpan( new TimeSpan( new Timestamp( s.getTimeInMillis() ), new Timestamp( e.getTimeInMillis() ) ) );
+			TimeSpan apptTime = new TimeSpan( new Timestamp( s.getTimeInMillis() ), new Timestamp( e.getTimeInMillis() ) );
+			
+			if( calGrid.isApptCrash(calGrid.getCurUser().getID(), apptTime, selectedApptId) )
+			{
+				JOptionPane.showMessageDialog( this, "Overlapping appointments!", "OVERLAP", JOptionPane.ERROR_MESSAGE );
+				return;
+			}
+			if( calGrid.isLocationCrash((Location)cbLocation.getSelectedItem(), apptTime, selectedApptId) )
+			{
+				JOptionPane.showMessageDialog( this, "Venue Occupied!", "OCCUPIED", JOptionPane.ERROR_MESSAGE );
+				return;
+			}
+			/*if( cbIsJoint.isSelected() )
+			{
+				DefaultTableModel model = (DefaultTableModel) inviteListTable.getModel();
+				Vector<Vector<String>> data = model.getDataVector();
+				for( int j = 0; j < data.size(); j++ )
+					if( calGrid.isApptCrash(calGrid.getUser(data.get(j).get(0)).getID(), apptTime) )
+					{
+						JOptionPane.showMessageDialog( this, "Overlapping appointments", "OVERLAP", JOptionPane.ERROR_MESSAGE );
+						return;
+					}
+			}*/
+		}
+
+		//Remove old appointments freq group & responses
+		if( selectedApptId != -1 )
+		{
+			Appt ta = calGrid.getAppt(selectedApptId);
+			selectedFreqGroupId = ta.getFreqGroupID();
+			selectedReminderId = ta.getReminderID(); 
+			if( selectedFreqGroupId != -1 )
+				calGrid.removeFreqGroup(selectedFreqGroupId);
+
+			//Remove responses
+			ArrayList<Integer> idList = calGrid.getApptGroupIDList(selectedFreqGroupId);
+			for( int i : idList )
+				calGrid.removeResponse(i);
+		}
+
+		if( freq > 1 )
+			selectedFreqGroupId = calGrid.getNextFreqGroupID();
+
+		//Create new appointment objects
+		for( int i = 0; i < freq; i++ )
+		{
+			Calendar s = (Calendar) start.clone();
+			s.add( calIncType, calInc*i );
+			Calendar e = (Calendar) end.clone();
+			e.add( calIncType, calInc*i );
+			TimeSpan apptTime = new TimeSpan( new Timestamp( s.getTimeInMillis() ), new Timestamp( e.getTimeInMillis() ) );
+
+			NewAppt = new Appt();
+			NewAppt.setTitle( titleField.getText().trim() );
+			NewAppt.setInfo( detailArea.getText().trim() );
+			NewAppt.setTimeSpan( apptTime );
 			NewAppt.setLocation( (Location)cbLocation.getSelectedItem() );
 			Reminder r = null;
 			if( isRemind.isSelected() )
@@ -599,36 +795,83 @@ public class AppScheduler extends JDialog implements ActionListener,
 				r.setHourInterval( reminderHour );
 				r.setMinuteInterval( reminderMinute );
 			}
-			//Make new appointment
-			if( selectedApptId == -1 )
+
+			//Make new appointment or modify group of appointments
+			if( selectedApptId == -1 || freq > 1 )
 			{
-				NewAppt.setID( parent.getNextApptID() );
+				NewAppt.setApptID( calGrid.getNextApptID() );
+				if( selectedFreqGroupId != -1 )
+					NewAppt.setFreqGroupID(selectedFreqGroupId);
 				if( isRemind.isSelected() )
 				{
-					r.setID( parent.getNextReminderID() );
+					r.setID( calGrid.getNextReminderID() );
 					r.setApptID( NewAppt.getID() );
 					NewAppt.setReminderID( r.getID() );
-					parent.addNewReminder( r );
+					calGrid.addNewReminder( r );
 				}
-				if( !parent.addNewAppt( NewAppt ) )
+				NewAppt.setInitUserID(calGrid.getCurUser().getID());
+				NewAppt.setJoint(false);
+				NewAppt.setPublic(cbIsPublic.isSelected());
+				NewAppt.setIsScheduled(true);
+				if( cbIsJoint.isSelected() )
 				{
-					JOptionPane.showMessageDialog( this, "Overlapping appointments", "OVERLAP", JOptionPane.ERROR_MESSAGE );
+					NewAppt.setJoint(true);
+					NewAppt.setIsScheduled(false);
+				}
+				if( !calGrid.addNewAppt( NewAppt ) )
+				{
+					JOptionPane.showMessageDialog( this, "Error adding appointments!", "OVERLAP", JOptionPane.ERROR_MESSAGE );
 					return;
 				}
+				else
+				{
+					if( cbIsJoint.isSelected() )
+					{
+						DefaultTableModel model = (DefaultTableModel) inviteListTable.getModel();
+						Vector<Vector<String>> data = model.getDataVector();
+						for( int j = 0; j < data.size(); j++ )
+						{
+							User u = calGrid.getUser(data.get(j).get(0));
+							if( calGrid.getCurUserLoginID().equals(u.getLoginID()) )
+								calGrid.addNewResponse(NewAppt.getID(), u.getID(), Response.ACCEPT);
+							else
+								calGrid.addNewResponse(NewAppt.getID(), u.getID(), Response.NEW);
+							//NewAppt.inviteUser(data.get(j).get(0));
+						}
+					}
+					else
+						calGrid.addNewResponse(NewAppt.getID(), calGrid.getCurUser().getID(), Response.INDIV);
+					
+					/*DefaultTableModel model = (DefaultTableModel) inviteListTable.getModel();
+					Vector<Vector<String>> data = model.getDataVector();
+					for( int j = 0; j < data.size(); j++ )
+						calGrid.inviteUser(NewAppt.getID(), data.get(j).get(0));
+					if( selectedGroupId != -1 )
+						calGrid.addToGroup(selectedGroupId, NewAppt.getID());*/
+				}
 			}
-			//Modify appointment
+			//Modify to single appointment
 			else
 			{
-				NewAppt.setID( selectedApptId );
+				NewAppt.setApptID( selectedApptId );
+				NewAppt.setInitUserID(calGrid.getCurUser().getID());
+				NewAppt.setJoint(false);
+				NewAppt.setPublic(cbIsPublic.isSelected());
+				NewAppt.setIsScheduled(true);
+				if( cbIsJoint.isSelected() )
+				{
+					NewAppt.setJoint(true);
+					NewAppt.setIsScheduled(false);
+				}
 				if( selectedReminderId == -1 )//No reminder originally
 				{
 					if( isRemind.isSelected() )
 					{
-						selectedReminderId = parent.getNextReminderID();
+						selectedReminderId = calGrid.getNextReminderID();
 						r.setID( selectedReminderId );
 						r.setApptID( NewAppt.getID() );
 						NewAppt.setReminderID( selectedReminderId );
-						parent.addNewReminder( r );
+						calGrid.addNewReminder( r );
 					}
 				}
 				else
@@ -637,18 +880,53 @@ public class AppScheduler extends JDialog implements ActionListener,
 					{
 						r.setID( selectedReminderId );
 						r.setApptID( NewAppt.getID() );
-						parent.updateReminder( r );
+						if( selectedFreqGroupId == -1 )
+							calGrid.updateReminder( r );
+						else
+							calGrid.addNewReminder( r );
 					}
 					else
 					{
-						r = parent.getReminder(selectedReminderId);
-						parent.removeReminder( r );
+						//r = calGrid.getReminder(selectedReminderId);
+						calGrid.removeReminder( selectedReminderId );
 					}
 				}
-				if( !parent.modifyAppt( NewAppt ) )
+				boolean isSuccess;
+				if( selectedFreqGroupId == -1 )
+					isSuccess = calGrid.modifyAppt( NewAppt );
+				else
 				{
-					JOptionPane.showMessageDialog( this, "Overlapping appointments", "OVERLAP", JOptionPane.ERROR_MESSAGE );
+					NewAppt.setApptID(calGrid.getNextApptID());
+					isSuccess = calGrid.addNewAppt( NewAppt );
+				}
+				if( !isSuccess )
+				{
+					JOptionPane.showMessageDialog( this, "Error adding appointments!", "OVERLAP", JOptionPane.ERROR_MESSAGE );
 					return;
+				}
+				else
+				{
+					if( cbIsJoint.isSelected() )
+					{
+						DefaultTableModel model = (DefaultTableModel) inviteListTable.getModel();
+						Vector<Vector<String>> data = model.getDataVector();
+						for( int j = 0; j < data.size(); j++ )
+						{
+							User u = calGrid.getUser(data.get(j).get(0));
+							if( calGrid.getCurUserLoginID().equals(u.getLoginID()) )
+								calGrid.addNewResponse(NewAppt.getID(), u.getID(), Response.ACCEPT);
+							else
+								calGrid.addNewResponse(NewAppt.getID(), u.getID(), Response.NEW);
+							//NewAppt.inviteUser(data.get(j).get(0));
+						}
+					}
+					else
+					{
+						if( selectedFreqGroupId == -1 )
+							calGrid.updateResponse(NewAppt.getID(), calGrid.getCurUser().getID(), Response.INDIV);
+						else
+							calGrid.addNewResponse(NewAppt.getID(), calGrid.getCurUser().getID(), Response.INDIV);
+					}
 				}
 			}
 		}
@@ -705,10 +983,10 @@ public class AppScheduler extends JDialog implements ActionListener,
 		return stamp;
 	}
 
-	public void updateSetApp(Appt appt) {
-		//TODO: updateSetApp(Appt appt)
+	public void updateSetApp(Appt a) {
+		//TODO: Update for freq group event!
 		// Fix Me!
-		TimeSpan ts = appt.TimeSpan();
+		TimeSpan ts = a.TimeSpan();
 		Timestamp start = ts.StartTime();
 		Timestamp end = ts.EndTime();
 		yearF.setText(""+(start.getYear()+1900));
@@ -718,23 +996,37 @@ public class AppScheduler extends JDialog implements ActionListener,
 		sTimeM.setText(""+start.getMinutes());
 		eTimeH.setText(""+end.getHours());
 		eTimeM.setText(""+end.getMinutes());
-		titleField.setText(appt.getTitle());
-		detailArea.setText(appt.getInfo());
-		selectedReminderId = appt.getReminderID();
+		titleField.setText(a.getTitle());
+		detailArea.setText(a.getInfo());
+		selectedReminderId = a.getReminderID();
 		if( selectedReminderId != -1 )
 		{
 			isRemind.setSelected(true);
-			Reminder r = parent.getReminder(appt.getReminderID());
+			Reminder r = calGrid.getReminder(a.getReminderID());
 			if( r != null )
 			{
 				rTimeH.setText(""+r.getHourInterval());
 				rTimeM.setText(""+r.getMinuteInterval());
 			}
 		}
-		if( appt.getLocation() != null )
-			cbLocation.setSelectedItem(appt.getLocation());
+		if( a.getLocation() != null )
+			cbLocation.setSelectedItem(a.getLocation());
 		else
 			cbLocation.setSelectedIndex(0);
+		if( a.isPublic() )
+			cbIsPublic.setSelected(true);
+		if( a.isJoint() )
+		{
+			cbIsJoint.setSelected(true);
+			tfInviteUser.setEnabled(true);
+			btnInvite.setEnabled(true);
+			ArrayList<Response> resList = calGrid.getResponseList(a.getID());
+			DefaultTableModel model = (DefaultTableModel) inviteListTable.getModel();
+			for( Response res : resList )
+				model.addRow(new Object[]{res.getUserLoginID(), res.getResponse()});
+		}
+		else
+			cbIsJoint.setSelected(false);
 	}
 
 	public void componentHidden(ComponentEvent e) {
@@ -750,7 +1042,7 @@ public class AppScheduler extends JDialog implements ActionListener,
 		Dimension dm = pDes.getSize();
 		double width = dm.width * 0.93;
 		double height = dm.getHeight() * 0.6;
-		detailPanel.setSize((int) width, (int) height);
+		groupAndDetailPanel.setSize((int) width, (int) height);
 
 	}
 
@@ -760,10 +1052,10 @@ public class AppScheduler extends JDialog implements ActionListener,
 	
 	public String getCurrentUser()		// get the id of the current user
 	{
-		return this.parent.mCurrUser.ID();
+		return this.calGrid.curUser.getLoginID();
 	}
 	
-	private void allDisableEdit(){
+	public void DisableEdit(){
 		yearF.setEditable(false);
 		monthF.setEditable(false);
 		dayF.setEditable(false);
@@ -772,6 +1064,149 @@ public class AppScheduler extends JDialog implements ActionListener,
 		eTimeH.setEditable(false);
 		eTimeM.setEditable(false);
 		titleField.setEditable(false);
+		cbLocation.setEnabled(false);
 		detailArea.setEditable(false);
+		isRemind.setEnabled(false);
+		rTimeH.setEditable(false);
+		rTimeM.setEditable(false);
+		rbOneTime.setEnabled(false);
+		rbDaily.setEnabled(false);
+		rbWeekly.setEnabled(false);
+		rbMonthly.setEnabled(false);
+		numOfFreqF.setEditable(false);
+		cbIsJoint.setEnabled(false);
 	}
+
+	public void addAcceptReject()
+	{
+		saveBut.setText("Accept");
+		rejectBut.show(true);
+	}
+
+	public void changeSaveToOK()
+	{
+		saveBut.setText("OK");
+	}
+
+	public void setAppointmentManagement(MyAppointmentManagementDialog am)
+	{
+		this.am = am;
+	}
+
+	public void setSchedule(TimeSpan t)
+	{
+		Timestamp s = t.StartTime();
+		Timestamp e = t.EndTime();
+		yearF.setText(s.getYear()+1900+"");
+		monthF.setText(s.getMonth()+1+"");
+		dayF.setText(s.getDate()+"");
+		sTimeH.setText(s.getHours()+"");
+		sTimeM.setText(s.getMinutes()+"");
+		eTimeH.setText(e.getHours()+"");
+		eTimeM.setText(e.getMinutes()+"");
+	}
+	/*
+	private JPanel createPartOperaPane() {
+		JPanel POperaPane = new JPanel();
+		JPanel browsePane = new JPanel();
+		JPanel controPane = new JPanel();
+
+		POperaPane.setLayout(new BorderLayout());
+		TitledBorder titledBorder1 = new TitledBorder(BorderFactory
+				.createEtchedBorder(Color.white, new Color(178, 178, 178)),
+				"Add Participant:");
+		browsePane.setBorder(titledBorder1);
+
+		POperaPane.add(controPane, BorderLayout.SOUTH);
+		POperaPane.add(browsePane, BorderLayout.CENTER);
+		POperaPane.setBorder(new BevelBorder(BevelBorder.LOWERED));
+		return POperaPane;
+
+	}
+
+	private int[] getValidDate() {
+		int[] date = new int[3];
+		date[0] = Utility.getNumber(yearF.getText());
+		date[1] = Utility.getNumber(monthF.getText());
+		if (date[0] < 1980 || date[0] > 2100) {
+			JOptionPane.showMessageDialog(this, "Please input proper year",
+					"Input Error", JOptionPane.ERROR_MESSAGE);
+			return null;
+		}
+		if (date[1] <= 0 || date[1] > 12) {
+			JOptionPane.showMessageDialog(this, "Please input proper month",
+					"Input Error", JOptionPane.ERROR_MESSAGE);
+			return null;
+		}
+	
+		date[2] = Utility.getNumber(dayF.getText());
+		int monthDay = CalGrid.monthDays[date[1] - 1];
+		if (date[1] == 2) {
+			GregorianCalendar c = new GregorianCalendar();
+			if (c.isLeapYear(date[0]))
+				monthDay = 29;
+		}
+		if (date[2] <= 0 || date[2] > monthDay) {
+			JOptionPane.showMessageDialog(this,
+			"Please input proper month day", "Input Error",
+			JOptionPane.ERROR_MESSAGE);
+			return null;
+		}
+		return date;
+	}
+
+	private int getTime(JTextField h, JTextField min) {
+	
+		int hour = Utility.getNumber(h.getText());
+		if (hour == -1)
+			return -1;
+		int minute = Utility.getNumber(min.getText());
+		if (minute == -1)
+			return -1;
+	
+		return (hour * 60 + minute);
+	
+	}
+	
+	private int[] getValidTimeInterval() {
+	
+		int[] result = new int[2];
+		result[0] = getTime(sTimeH, sTimeM);
+		result[1] = getTime(eTimeH, eTimeM);
+		if ((result[0] % 15) != 0 || (result[1] % 15) != 0) {
+			JOptionPane.showMessageDialog(this,
+					"Minute Must be 0, 15, 30, or 45 !", "Input Error",
+					JOptionPane.ERROR_MESSAGE);
+			return null;
+		}
+		
+		if (!sTimeM.getText().equals("0") && !sTimeM.getText().equals("15") && !sTimeM.getText().equals("30") && !sTimeM.getText().equals("45") 
+			|| !eTimeM.getText().equals("0") && !eTimeM.getText().equals("15") && !eTimeM.getText().equals("30") && !eTimeM.getText().equals("45")){
+			JOptionPane.showMessageDialog(this,
+					"Minute Must be 0, 15, 30, or 45 !", "Input Error",
+					JOptionPane.ERROR_MESSAGE);
+			return null;
+		}
+		
+		if (result[1] == -1 || result[0] == -1) {
+			JOptionPane.showMessageDialog(this, "Please check time",
+					"Input Error", JOptionPane.ERROR_MESSAGE);
+			return null;
+		}
+		if (result[1] <= result[0]) {
+			JOptionPane.showMessageDialog(this,
+					"End time should be bigger than \nstart time",
+					"Input Error", JOptionPane.ERROR_MESSAGE);
+			return null;
+		}
+		if ((result[0] < AppList.OFFSET * 60)
+				|| (result[1] > (AppList.OFFSET * 60 + AppList.ROWNUM * 2 * 15))) {
+			JOptionPane.showMessageDialog(this, "Out of Appointment Range !",
+					"Input Error", JOptionPane.ERROR_MESSAGE);
+			return null;
+		}
+	
+		return result;
+	}
+*/
 }

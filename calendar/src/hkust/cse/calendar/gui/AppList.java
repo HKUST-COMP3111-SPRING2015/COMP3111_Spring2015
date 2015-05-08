@@ -99,7 +99,7 @@ public class AppList extends JPanel implements ActionListener {
 	private int pressCol;
 	private int releaseRow;
 	private int releaseCol;
-	private CalGrid parent;
+	private CalGrid calGrid;
 	private Color currColor = Color.green;
 	private Color currColorForJoint = Color.red;
 	public final static int COLORED_TITLE = 1;
@@ -423,16 +423,16 @@ public class AppList extends JPanel implements ActionListener {
 			return;
 		int n = JOptionPane.showConfirmDialog(null, "Delete this appointment?", "DELETE", JOptionPane.YES_NO_OPTION);
 		if (n == JOptionPane.YES_OPTION)
-			parent.removeAppt(apptTitle);
+			calGrid.removeAppt(apptTitle.getID());
 	}
 
 	private void modify() {
-		Appt apptTitle = getSelectedAppTitle();
-		if (apptTitle == null)
+		Appt selectedAppt = getSelectedAppTitle();
+		if (selectedAppt == null)
 			return;
-		AppScheduler setAppDial = new AppScheduler("Modify", parent, apptTitle.getID());
+		AppScheduler setAppDial = new AppScheduler("Modify", calGrid, selectedAppt.getID());
 
-		setAppDial.updateSetApp(apptTitle);
+		setAppDial.updateSetApp(selectedAppt);
 		setAppDial.show();
 		setAppDial.setResizable(false);
 	}
@@ -441,7 +441,7 @@ public class AppList extends JPanel implements ActionListener {
 		
 		Object apptTitle;
 		if (currentRow < 0 || currentRow > ROWNUM - 1) {
-			JOptionPane.showMessageDialog(parent, "Please Select Again !",
+			JOptionPane.showMessageDialog(calGrid, "Please Select Again !",
 					"Error", JOptionPane.ERROR_MESSAGE);
 			
 			selectedAppt=null;
@@ -467,10 +467,10 @@ public class AppList extends JPanel implements ActionListener {
 	
 	private void NewAppt() {
 		
-		if (parent.mCurrUser == null)
+		if (calGrid.curUser == null)
 			return;
 		if (currentRow < 0 || currentRow > ROWNUM - 1) {
-			JOptionPane.showMessageDialog(parent, "Please Select Again !",
+			JOptionPane.showMessageDialog(calGrid, "Please Select Again !",
 					"Error", JOptionPane.ERROR_MESSAGE);
 			return;
 		}
@@ -480,10 +480,10 @@ public class AppList extends JPanel implements ActionListener {
 			startTime = currentRow * 15 + 480;
 		else
 			startTime = (currentRow + 20) * 15 + 480;
-		AppScheduler a = new AppScheduler("New", parent);
+		AppScheduler a = new AppScheduler("New", calGrid);
 		a.updateSetApp(hkust.cse.calendar.gui.Utility.createDefaultAppt(
-				parent.currentY, parent.currentM, parent.currentD,
-				parent.mCurrUser, startTime));
+				calGrid.currentY, calGrid.currentM, calGrid.currentD,
+				calGrid.curUser, startTime));
 		a.setLocationRelativeTo(null);
 		a.show();
 	}
@@ -548,7 +548,7 @@ public class AppList extends JPanel implements ActionListener {
 				return;
 			TimeSpan ts = a.TimeSpan();
 			Timestamp start = ts.StartTime();
-			if(start.before(parent.getToday().getTime()))
+			if(start.before(calGrid.getToday().getTime()))
 			{
 				modifyItem.setEnabled(false);
 				deleteItem.setEnabled(false);
@@ -563,7 +563,7 @@ public class AppList extends JPanel implements ActionListener {
 	}
 
 	public void setParent(CalGrid grid) {
-		parent = grid;
+		calGrid = grid;
 	}
 
 	public void actionPerformed(ActionEvent e) {

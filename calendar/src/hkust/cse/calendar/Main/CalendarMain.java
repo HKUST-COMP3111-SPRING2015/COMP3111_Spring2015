@@ -1,33 +1,40 @@
-//main method, code starts here
 package hkust.cse.calendar.Main;
 
+import hkust.cse.calendar.apptstorage.Controller;
+import hkust.cse.calendar.apptstorage.Model;
+import hkust.cse.calendar.gui.CalGrid;
 
-import javax.swing.UIManager;
 
-import hkust.cse.calendar.gui.LoginDialog;
-
-
-public class CalendarMain {
-	public static boolean logOut = false;
+public class CalendarMain
+{
+	private CalGrid cd;
+	private Controller ctrl;
+	private Model model;
 	
-	public static void main(String[] args) {
-		while(true){
-			logOut = false;
-			try{
-		//	UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
-			}catch(Exception e){
-				
-			}
-			LoginDialog loginDialog = new LoginDialog();
-			while(logOut == false){
-				try {
-					Thread.sleep(300);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-		}
+	public static void main(String[] args)
+	{
+		CalendarMain main = new CalendarMain();
+	}
+
+	public CalendarMain()
+	{
+		cd = new CalGrid(this);
+		ctrl = new Controller();
+		model = new Model();
+		cd.setController(ctrl);
+		cd.setModel(model);
+		ctrl.setCalGrid(cd);
+		ctrl.setModel(model);
+		cd.login();
+	}
+
+	public void restart()
+	{
+		cd.dispose();
+		cd = new CalGrid(this);
+		cd.setController(ctrl);
+		cd.setModel(model);
+		cd.login();
 	}
 }
 		
