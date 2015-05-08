@@ -817,6 +817,13 @@ public class AppScheduler extends JDialog implements ActionListener,
 				{
 					NewAppt.setJoint(true);
 					NewAppt.setIsScheduled(false);
+					DefaultTableModel model = (DefaultTableModel) inviteListTable.getModel();
+					Vector<Vector<String>> data = model.getDataVector();
+					if( data.size() == 1 )
+					{
+						JOptionPane.showMessageDialog( this, "Please invite people!", "OVERLAP", JOptionPane.ERROR_MESSAGE );
+						return;
+					}
 				}
 				if( !calGrid.addNewAppt( NewAppt ) )
 				{
@@ -862,6 +869,13 @@ public class AppScheduler extends JDialog implements ActionListener,
 				{
 					NewAppt.setJoint(true);
 					NewAppt.setIsScheduled(false);
+					DefaultTableModel model = (DefaultTableModel) inviteListTable.getModel();
+					Vector<Vector<String>> data = model.getDataVector();
+					if( data.size() == 1 )
+					{
+						JOptionPane.showMessageDialog( this, "Please invite people!", "OVERLAP", JOptionPane.ERROR_MESSAGE );
+						return;
+					}
 				}
 				if( selectedReminderId == -1 )//No reminder originally
 				{

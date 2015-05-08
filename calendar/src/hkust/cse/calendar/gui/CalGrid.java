@@ -6,6 +6,7 @@ import hkust.cse.calendar.apptstorage.Model;
 import hkust.cse.calendar.unit.Appt;
 import hkust.cse.calendar.unit.Location;
 import hkust.cse.calendar.unit.Reminder;
+import hkust.cse.calendar.unit.RemoveMessage;
 import hkust.cse.calendar.unit.Response;
 import hkust.cse.calendar.unit.TimeSpan;
 import hkust.cse.calendar.unit.User;
@@ -112,6 +113,38 @@ public class CalGrid extends JFrame implements ActionListener {
 	public void startMainProgram(String loginID)
 	{
 		curUser = model.getUser(loginID);
+		ArrayList<RemoveMessage> msgList = model.getRemoveMessage(curUser.getID());
+		for( RemoveMessage msg : msgList )
+		{
+			String s = "";
+			if( msg.getUserID() != -1 )
+			{
+				User u = model.getUser(msg.getUserID());
+				s += "User "+ u.getLoginID() +" will be deleted, is it OK?";
+			}
+			else if( msg.getLocationID() != -1 )
+			{
+				Location l = model.getLocation(msg.getLocationID());
+				s += "Location "+ l.getName() +" will be deleted, is it OK?";
+			}
+			
+			int n = JOptionPane.showConfirmDialog(null, s, "Remove", JOptionPane.YES_NO_OPTION);
+			if (n == JOptionPane.YES_OPTION)
+			{
+				if( msg.getUserID() != -1 )
+					model.updateUserToRemoveTable(msg.getUserID(), msg.getInformID(), true);
+				else
+					model.updateLocationToRemoveTable(msg.getLocationID(), msg.getInformID(), true);
+			}
+			else
+			{
+				if( msg.getUserID() != -1 )
+					model.updateUserToRemoveTable(msg.getUserID(), msg.getInformID(), false);
+				else
+					model.updateLocationToRemoveTable(msg.getLocationID(), msg.getInformID(), false);
+			}
+		}
+
 		if( curUser.getUserType() == User.ADMIN )
 			isAdmin = true; 
 		previousRow = 0;
@@ -978,7 +1011,28 @@ public class CalGrid extends JFrame implements ActionListener {
 	public ArrayList<User> getUserList() { return model.getUserList(); }
 	public void addUser(User user) { model.addUser(user); }
 	public void updateUser(User user) { model.updateUser(user); }
-	public void removeUser(int userID) { model.removeUser(userID); }
+	//public void removeUser(int userID) { model.removeUser(userID); }
+	public void addUserToRemoveTable(int userID)
+	{
+		Timestamp t1 = new Timestamp( today.getTimeInMillis() );
+		Calendar c = Calendar.getInstance();
+		c.setTimeInMillis(today.getTimeInMillis());
+		c.add(Calendar.YEAR, 100);
+		Timestamp t2 = new Timestamp( c.getTimeInMillis() );
+		TimeSpan ts = new TimeSpan(t1, t2);
+		ctrl.addUserToRemoveTable(userID, ts);
+	}
+
+	public void addLocationToRemoveTable(int locationID)
+	{
+		Timestamp t1 = new Timestamp( today.getTimeInMillis() );
+		Calendar c = Calendar.getInstance();
+		c.setTimeInMillis(today.getTimeInMillis());
+		c.add(Calendar.YEAR, 100);
+		Timestamp t2 = new Timestamp( c.getTimeInMillis() );
+		TimeSpan ts = new TimeSpan(t1, t2);
+		ctrl.addLocationToRemoveTable(locationID, ts);
+	}
 	
 	public void login()
 	{

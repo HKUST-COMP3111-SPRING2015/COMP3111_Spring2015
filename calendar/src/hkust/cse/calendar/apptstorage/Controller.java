@@ -276,4 +276,18 @@ public class Controller
 				returnList.add(r);
 		return returnList;
 	}
+
+	public void addUserToRemoveTable(int userID, TimeSpan period)
+	{
+		ArrayList<Integer> informList = model.getInitUserByUserID(userID);
+		for( int i = 0; i < informList.size(); i++ )
+			model.addUserToRemoveTable(userID, informList.get(i));
+	}
+
+	public void addLocationToRemoveTable(int locationID, TimeSpan period)
+	{
+		ArrayList<Integer> informList = model.getInitUserByLocationID(locationID);
+		for( int i = 0; i < informList.size(); i++ )
+			model.addLocationToRemoveTable(locationID, informList.get(i));
+	}
 }

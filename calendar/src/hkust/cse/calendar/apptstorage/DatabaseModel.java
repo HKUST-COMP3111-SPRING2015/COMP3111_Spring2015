@@ -904,7 +904,7 @@ public class DatabaseModel
 		ArrayList<User> userList = new ArrayList<User>();
 		try
 		{
-			ResultSet rs = executeSQL( "SELECT * FROM User" );
+			ResultSet rs = executeSQL( "SELECT * FROM User WHERE IsRemoved=FALSE" );
 			while(rs.next())
 			{
 				User user = new User(rs.getInt("UserID"), rs.getString("FirstName"), rs.getString("LastName"), rs.getString("LoginID"), rs.getString("Password"), rs.getString("Email"), rs.getInt("UserType"));
@@ -929,6 +929,127 @@ public class DatabaseModel
 			}
 			rs.close();
 			return resList;
+		}
+		catch( SQLException e ) { e.printStackTrace(); return null; }
+	}
+
+	public void addToRemoveTable( int userID, int locationID, int informID )
+	{
+		try
+		{
+			Class.forName("com.mysql.jdbc.Driver");
+			Connection conn = DriverManager.getConnection( url, accountName, password );
+			String sql = "INSERT INTO RemoveTable (UserID, LocationID, InformUserID) "
+					+ "VALUES (?,?,?)";
+			PreparedStatement stat = conn.prepareStatement(sql);
+			stat.setInt(1, userID);
+			stat.setInt(2, locationID);
+			stat.setInt(3, informID);
+			stat.executeUpdate();
+			conn.close();
+		}
+		catch( Exception e )
+		{
+			e.printStackTrace();
+		}
+	}
+
+	public void updateRemoveTable( int userID, int locationID, int informID, boolean isConfirm )
+	{
+		try
+		{
+			Class.forName("com.mysql.jdbc.Driver");
+			Connection conn = DriverManager.getConnection( url, accountName, password );
+			String sql = "UPDATE RemoveTable SET IsInformed=?, IsConfirm=? WHERE UserID=? AND LocationID=? AND InformUserID=?";
+			PreparedStatement stat = conn.prepareStatement(sql);
+			stat.setBoolean(1, true);
+			stat.setBoolean(2, isConfirm);
+			stat.setInt(3, userID);
+			stat.setInt(4, locationID);
+			stat.setInt(5, informID);
+			stat.executeUpdate();
+			ResultSet rs = executeSQL( "SELECT IsConfirm FROM RemoveTable WHERE UserID="+userID+" AND "
+					+ "LocationID="+locationID );
+			while( rs.next() )
+				if( !rs.getBoolean("IsConfirm") )
+				{
+					rs.close();
+					return;
+				}
+			if( userID != -1 )
+			{
+				String sql2 = "UPDATE Appointment SET IsRemoved=? WHERE InitUserID=?";
+				PreparedStatement stat2 = conn.prepareStatement(sql2);
+				stat2.setBoolean(1, true);
+				stat2.setInt(2, userID);
+				stat2.executeUpdate();
+				removeUser(userID);
+			}
+			else
+			{
+				String sql2 = "UPDATE Appointment SET IsRemoved=? WHERE LocationID=?";
+				PreparedStatement stat2 = conn.prepareStatement(sql2);
+				stat2.setBoolean(1, true);
+				stat2.setInt(2, locationID);
+				stat2.executeUpdate();
+				removeLocation(locationID);
+			}
+			rs.close();
+			
+		}
+		catch( Exception e )
+		{
+			e.printStackTrace();
+		}
+	}
+
+	public ArrayList<Integer> getInitUserByUserID( int userID )
+	{
+		ArrayList<Integer> returnList = new ArrayList<Integer>();
+		try
+		{
+			ResultSet rs = executeSQL( "SELECT DISTINCT A.InitUserID AS ID FROM Appointment A, Response R WHERE "
+					+ "A.ApptID = R.ApptID AND R.UserID = "+userID );
+			while( rs.next() )
+				returnList.add(rs.getInt("ID"));
+			rs.close();
+			return returnList;
+		}
+		catch( SQLException e ) { e.printStackTrace(); return null; }
+	}
+
+	public ArrayList<Integer> getInitUserByLocationID( int locationID )
+	{
+		ArrayList<Integer> returnList = new ArrayList<Integer>();
+		try
+		{
+			ResultSet rs = executeSQL( "SELECT DISTINCT InitUserID AS ID FROM Appointment WHERE LocationID ="+locationID );
+			while( rs.next() )
+				returnList.add(rs.getInt("ID"));
+			rs.close();
+			return returnList;
+		}
+		catch( SQLException e ) { e.printStackTrace(); return null; }
+	}
+
+	public ArrayList<RemoveMessage> getRemoveMessage( int userID )
+	{
+		ArrayList<RemoveMessage> returnList = new ArrayList<RemoveMessage>();
+		try
+		{
+			ResultSet rs = executeSQL( "SELECT * FROM RemoveTable WHERE IsInformed = FALSE AND InformUserID  = "+userID );
+			while( rs.next() )
+			{
+				RemoveMessage msg = new RemoveMessage();
+				msg.setUserID(rs.getInt("UserID"));
+				msg.setLocationID(rs.getInt("LocationID"));
+				msg.setInformID(rs.getInt("InformUserID"));
+				msg.isInformed(rs.getBoolean("IsInformed"));
+				msg.isConfirm(rs.getBoolean("IsConfirm"));
+				returnList.add(msg);
+			}
+			rs.close();
+			return returnList;
 		}
 		catch( SQLException e ) { e.printStackTrace(); return null; }
 	}

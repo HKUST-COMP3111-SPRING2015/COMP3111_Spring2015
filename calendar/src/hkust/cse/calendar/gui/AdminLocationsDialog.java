@@ -211,8 +211,14 @@ public class AdminLocationsDialog extends JFrame {
 				{
 					if(list.getSelectedValue() != null)
 					{
-						calGrid.removeLocation(list.getSelectedValue().getID());
-						listModel.removeElement(list.getSelectedValue());
+						int n = JOptionPane.showConfirmDialog(null, "Confirm Delete?", "CONFIRM", JOptionPane.YES_NO_OPTION);
+						if (n == JOptionPane.YES_OPTION)
+						{
+							//calGrid.removeLocation(list.getSelectedValue().getID());
+							calGrid.addLocationToRemoveTable(list.getSelectedValue().getID());
+							listModel.removeElement(list.getSelectedValue());
+							JOptionPane.showMessageDialog(null, "It will be deleted after related people confirmed.", "Message", JOptionPane.WARNING_MESSAGE);
+						}
 					}
 				}
 			}

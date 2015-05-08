@@ -162,6 +162,11 @@ public class Model
 		db.removeReminder(rID);
 	}
 
+	public Location getLocation(int locationID)
+	{
+		return db.getLocation(locationID);
+	}
+
 	public ArrayList<Location> getLocationList()
 	{
 		return db.getLocationList();
@@ -200,5 +205,40 @@ public class Model
 	public void removeResponse(int apptID)
 	{
 		db.removeResponse(apptID);
+	}
+
+	public void addUserToRemoveTable(int userID, int informID)
+	{
+		db.addToRemoveTable(userID, -1, informID);
+	}
+
+	public void addLocationToRemoveTable(int locationID, int informID)
+	{
+		db.addToRemoveTable(-1, locationID, informID);
+	}
+
+	public void updateUserToRemoveTable(int userID, int informID, boolean isConfirm)
+	{
+		db.updateRemoveTable(userID, -1, informID, isConfirm);
+	}
+
+	public void updateLocationToRemoveTable(int locationID, int informID, boolean isConfirm)
+	{
+		db.updateRemoveTable(-1, locationID, informID, isConfirm);
+	}
+
+	public ArrayList<Integer> getInitUserByUserID(int userID)
+	{
+		return db.getInitUserByUserID(userID);
+	}
+
+	public ArrayList<Integer> getInitUserByLocationID(int locationID)
+	{
+		return db.getInitUserByLocationID(locationID);
+	}
+
+	public ArrayList<RemoveMessage> getRemoveMessage(int userID)
+	{
+		return db.getRemoveMessage(userID);
 	}
 }
